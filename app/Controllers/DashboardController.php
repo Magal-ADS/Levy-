@@ -23,18 +23,28 @@ class DashboardController {
         $partesData = explode('-', $mesReferencia);
         $nomeMesAno = $mesesBr[$partesData[1]] . " de " . $partesData[0];
 
-        // ID fixo do usuário (Magal)
+        // ID fixo do usuário (Levy)
         $usuarioId = 1; 
 
-        // 2. Pega dados do seu Perfil (Salário Base e Saldo Inicial)
-        $stmt = $this->pdo->prepare("SELECT salario_base, saldo_inicial_mes FROM usuarios WHERE id = ?");
+        // 2. Pega dados do seu Perfil (Saldo Inicial do Banco)
+        $stmt = $this->pdo->prepare("SELECT saldo_inicial_mes FROM usuarios WHERE id = ?");
         $stmt->execute([$usuarioId]);
         $usuario = $stmt->fetch();
         
-        $salario = $usuario['salario_base'] ?? 0;
         $saldoInicial = $usuario['saldo_inicial_mes'] ?? 0;
 
-        // 3. Calcula "A Receber" (Dívidas de amigos pendentes - Global)
+        // 3. Calcula "Entradas Reais" (Soma das entradas que você registrou no sistema)
+        $sqlEntradas = "SELECT SUM(dt.valor_divisao) as total 
+                        FROM divisoes_transacao dt 
+                        JOIN transacoes t ON dt.transacao_id = t.id 
+                        WHERE dt.pessoa_id IS NULL 
+                        AND t.tipo = 'entrada' 
+                        AND t.mes_referencia = ?";
+        $stmtEntradas = $this->pdo->prepare($sqlEntradas);
+        $stmtEntradas->execute([$mesReferencia]);
+        $entradasReais = $stmtEntradas->fetch()['total'] ?? 0;
+
+        // 4. Calcula "A Receber" (Dívidas de amigos pendentes - Global)
         $sqlReceber = "SELECT SUM(dt.valor_divisao) as total 
                        FROM divisoes_transacao dt 
                        JOIN transacoes t ON dt.transacao_id = t.id 
@@ -43,7 +53,7 @@ class DashboardController {
         $stmtTotalReceber = $this->pdo->query($sqlReceber);
         $aReceber = $stmtTotalReceber->fetch()['total'] ?? 0;
 
-        // 4. Calcula "Minhas Despesas" (A SUA parte das contas REAIS já lançadas no mês)
+        // 5. Calcula "Minhas Despesas" (A SUA parte das contas despesas no mês)
         $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total 
                         FROM divisoes_transacao dt 
                         JOIN transacoes t ON dt.transacao_id = t.id 
@@ -54,9 +64,7 @@ class DashboardController {
         $stmtMinhasDespesas->execute([$mesReferencia]);
         $minhasDespesas = $stmtMinhasDespesas->fetch()['total'] ?? 0;
 
-        // 5. LÓGICA DE CONTAS FIXAS AUTOMÁTICAS (Comprometimento de Saldo)
-        // Buscamos o valor de contas que são 'automatico' e estão ativas, 
-        // mas que ainda NÃO possuem um lançamento correspondente na tabela de transações deste mês.
+        // 6. LÓGICA DE CONTAS FIXAS AUTOMÁTICAS (Comprometimento de Saldo)
         $sqlFixasAuto = "SELECT SUM(valor_estimado) as total 
                          FROM contas_fixas 
                          WHERE tipo_pagamento = 'automatico' 
@@ -68,11 +76,11 @@ class DashboardController {
         $stmtFixas->execute([$mesReferencia]);
         $fixasComprometidas = $stmtFixas->fetch()['total'] ?? 0;
 
-        // 6. Saldo Disponível Real
-        // (Salário + Inicial) - (Despesas lançadas) - (Contas fixas automáticas pendentes)
-        $saldoDisponivel = ($salario + $saldoInicial) - $minhasDespesas - $fixasComprometidas;
+        // 7. Saldo Disponível Real
+        // (Saldo Inicial do Banco + Entradas Registradas) - (Despesas Lançadas) - (Fixas Automáticas Pendentes)
+        $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
-        // 7. BUSCA DAS TRANSAÇÕES PARA A TABELA
+        // 8. BUSCA DAS TRANSAÇÕES PARA A TABELA
         $sqlLancamentos = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
             (SELECT GROUP_CONCAT(p.nome SEPARATOR ', ') 
@@ -111,7 +119,7 @@ class DashboardController {
         $stmtLista->execute($params);
         $transacoes = $stmtLista->fetchAll();
 
-        // 8. Envia todas as variáveis para a View
+        // 9. Envia todas as variáveis para a View
         require_once '../app/Views/dashboard.php';
     }
 }
