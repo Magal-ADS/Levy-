@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MagalFin - Controle Financeiro</title>
+    <title>Levy - Controle Financeiro</title>
     
     <link rel="manifest" href="/financeiro/public/manifest.json">
     <meta name="theme-color" content="#4f46e5">
@@ -31,7 +31,7 @@
         
         <div class="h-16 flex items-center px-6 border-b border-slate-700 bg-slate-900">
             <h1 class="text-xl font-bold tracking-wider text-emerald-400 flex items-center gap-2">
-                <span>💸</span> MagalFin
+                <span>💸</span> Levy
             </h1>
         </div>
 
@@ -48,6 +48,13 @@
                 <span class="flex items-center gap-3">
                     <svg class="w-5 h-5 group-hover:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
                     Relatórios / Gráficos
+                </span>
+            </a>
+
+            <a href="/financeiro/public/index.php/contas-fixas" class="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors group bg-slate-800/30">
+                <span class="flex items-center gap-3">
+                    <svg class="w-5 h-5 group-hover:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Contas Fixas
                 </span>
             </a>
 
@@ -104,7 +111,7 @@
     <div class="flex-1 flex flex-col overflow-hidden w-full">
         
         <header class="md:hidden bg-slate-900 text-white h-16 flex items-center justify-between px-4 z-10 shadow-md">
-            <h1 class="text-lg font-bold text-emerald-400">💸 MagalFin</h1>
+            <h1 class="text-lg font-bold text-emerald-400">💸 Levy</h1>
             <button onclick="toggleSidebar()" class="text-slate-300 hover:text-white focus:outline-none p-2">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
@@ -122,7 +129,7 @@
             overlay.classList.toggle('hidden');
         }
 
-        // Registro do Service Worker (PWA) para evitar Erro 404 e habilitar instalação
+        // Registro do Service Worker (PWA)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/financeiro/public/sw.js')

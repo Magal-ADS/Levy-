@@ -1,6 +1,6 @@
 {
-  "name": "MagalFin Controle",
-  "short_name": "MagalFin",
+  "name": "Levy Controle",
+  "short_name": "Levy",
   "start_url": "/financeiro/public/index.php",
   "display": "standalone",
   "background_color": "#0f172a",

@@ -35,7 +35,6 @@ class DashboardController {
         $saldoInicial = $usuario['saldo_inicial_mes'] ?? 0;
 
         // 3. Calcula "A Receber" (Dívidas de amigos pendentes - Global)
-        // Somamos tudo o que está status_pago = 0 para amigos, independente do mês de origem
         $sqlReceber = "SELECT SUM(dt.valor_divisao) as total 
                        FROM divisoes_transacao dt 
                        JOIN transacoes t ON dt.transacao_id = t.id 
@@ -44,8 +43,7 @@ class DashboardController {
         $stmtTotalReceber = $this->pdo->query($sqlReceber);
         $aReceber = $stmtTotalReceber->fetch()['total'] ?? 0;
 
-        // 4. Calcula "Minhas Despesas" (A SUA parte das contas do mês selecionado)
-        // A sua parte é onde o pessoa_id no banco é NULL
+        // 4. Calcula "Minhas Despesas" (A SUA parte das contas REAIS já lançadas no mês)
         $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total 
                         FROM divisoes_transacao dt 
                         JOIN transacoes t ON dt.transacao_id = t.id 
@@ -56,10 +54,25 @@ class DashboardController {
         $stmtMinhasDespesas->execute([$mesReferencia]);
         $minhasDespesas = $stmtMinhasDespesas->fetch()['total'] ?? 0;
 
-        // 5. Saldo Disponível (Salário + Saldo Inicial - Minhas Despesas)
-        $saldoDisponivel = ($salario + $saldoInicial) - $minhasDespesas;
+        // 5. LÓGICA DE CONTAS FIXAS AUTOMÁTICAS (Comprometimento de Saldo)
+        // Buscamos o valor de contas que são 'automatico' e estão ativas, 
+        // mas que ainda NÃO possuem um lançamento correspondente na tabela de transações deste mês.
+        $sqlFixasAuto = "SELECT SUM(valor_estimado) as total 
+                         FROM contas_fixas 
+                         WHERE tipo_pagamento = 'automatico' 
+                         AND ativo = 1 
+                         AND descricao NOT IN (
+                             SELECT descricao FROM transacoes WHERE mes_referencia = ?
+                         )";
+        $stmtFixas = $this->pdo->prepare($sqlFixasAuto);
+        $stmtFixas->execute([$mesReferencia]);
+        $fixasComprometidas = $stmtFixas->fetch()['total'] ?? 0;
 
-        // 6. BUSCA DAS TRANSAÇÕES PARA A TABELA
+        // 6. Saldo Disponível Real
+        // (Salário + Inicial) - (Despesas lançadas) - (Contas fixas automáticas pendentes)
+        $saldoDisponivel = ($salario + $saldoInicial) - $minhasDespesas - $fixasComprometidas;
+
+        // 7. BUSCA DAS TRANSAÇÕES PARA A TABELA
         $sqlLancamentos = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
             (SELECT GROUP_CONCAT(p.nome SEPARATOR ', ') 
@@ -73,7 +86,6 @@ class DashboardController {
 
         $params = [':mes' => $mesReferencia];
 
-        // Lógica de busca com placeholders únicos (:b1, :b2...) para evitar erro no PDO
         if (!empty($busca)) {
             $sqlLancamentos .= " AND (
                 t.descricao LIKE :b1 
@@ -99,7 +111,7 @@ class DashboardController {
         $stmtLista->execute($params);
         $transacoes = $stmtLista->fetchAll();
 
-        // 7. Envia todas as variáveis para a View
+        // 8. Envia todas as variáveis para a View
         require_once '../app/Views/dashboard.php';
     }
 }

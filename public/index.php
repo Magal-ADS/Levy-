@@ -9,7 +9,7 @@ $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // --- ROTAS DA APLICAÇÃO ---
 
-// 1. --- TRANSAÇÕES (MOVIMENTAÇÕES) ---
+// 1. --- TRANSAÇÕES (MOVIMENTAÇÕES REAIS) ---
 
 // Nova Conta (Formulário)
 if (strpos($uri, '/nova-conta') !== false) {
@@ -21,7 +21,7 @@ elseif (strpos($uri, '/salvar-transacao') !== false) {
     require_once '../app/Controllers/TransacaoController.php';
     (new TransacaoController($pdo))->salvar();
 }
-// Tela de Transações (A nova tela com Gráfico de Pizza)
+// Tela de Transações (Listagem completa com Gráfico de Pizza)
 elseif (strpos($uri, '/transacoes') !== false) {
     require_once '../app/Controllers/TransacaoController.php';
     (new TransacaoController($pdo))->index();
@@ -42,7 +42,30 @@ elseif (strpos($uri, '/deletar-transacao') !== false) {
     (new TransacaoController($pdo))->deletar();
 }
 
-// 2. --- AMIGOS (PESSOAS) ---
+// 2. --- CONTAS FIXAS (PLANEJAMENTO / AUTOMATISMOS) ---
+
+// Listagem e Cadastro de Contas Fixas
+elseif (strpos($uri, '/contas-fixas') !== false) {
+    require_once '../app/Controllers/ContaFixaController.php';
+    $controller = new ContaFixaController($pdo);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->salvar();
+    } else {
+        $controller->index();
+    }
+}
+// Ação de "Dar Baixa" (Pagar conta manual ou confirmar automática)
+elseif (strpos($uri, '/pagar-conta-fixa') !== false) {
+    require_once '../app/Controllers/ContaFixaController.php';
+    (new ContaFixaController($pdo))->pagar();
+}
+// Deletar Conta Fixa
+elseif (strpos($uri, '/deletar-conta-fixa') !== false) {
+    require_once '../app/Controllers/ContaFixaController.php';
+    (new ContaFixaController($pdo))->deletar();
+}
+
+// 3. --- AMIGOS (PESSOAS) ---
 
 elseif (strpos($uri, '/pessoas') !== false) {
     require_once '../app/Controllers/PessoaController.php';
@@ -58,7 +81,7 @@ elseif (strpos($uri, '/deletar-pessoa') !== false) {
     (new PessoaController($pdo))->deletar();
 }
 
-// 3. --- CATEGORIAS ---
+// 4. --- CATEGORIAS ---
 
 elseif (strpos($uri, '/categorias') !== false) {
     require_once '../app/Controllers/CategoriaController.php';
@@ -74,7 +97,7 @@ elseif (strpos($uri, '/deletar-categoria') !== false) {
     (new CategoriaController($pdo))->deletar();
 }
 
-// 4. --- CARTÕES ---
+// 5. --- CARTÕES ---
 
 elseif (strpos($uri, '/cartoes') !== false) {
     require_once '../app/Controllers/CartaoController.php';
@@ -90,7 +113,7 @@ elseif (strpos($uri, '/deletar-cartao') !== false) {
     (new CartaoController($pdo))->deletar();
 }
 
-// 5. --- RECEBIMENTOS (DÍVIDAS) ---
+// 6. --- RECEBIMENTOS (DÍVIDAS DE AMIGOS) ---
 
 elseif (strpos($uri, '/recebimentos') !== false) {
     require_once '../app/Controllers/RecebimentoController.php';
@@ -101,7 +124,7 @@ elseif (strpos($uri, '/baixar-recebimento') !== false) {
     (new RecebimentoController($pdo))->baixar();
 }
 
-// 6. --- CONFIGURAÇÕES / PERFIL ---
+// 7. --- CONFIGURAÇÕES / PERFIL ---
 
 elseif (strpos($uri, '/configuracoes') !== false) {
     require_once '../app/Controllers/ConfigController.php';
