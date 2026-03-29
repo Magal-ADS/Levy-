@@ -18,7 +18,7 @@
         <div class="flex flex-wrap gap-3 items-center w-full md:w-auto">
             <a href="/financeiro/public/index.php/nova-conta" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                + Nova Conta
+                + Nova Transação
             </a>
 
             <form method="GET" class="m-0 flex gap-2">
