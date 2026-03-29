@@ -1,0 +1,17 @@
+{
+  "name": "MagalFin Controle",
+  "short_name": "MagalFin",
+  "start_url": "/financeiro/public/index.php",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "description": "Meu Controle Financeiro Pessoal",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5501/5501375.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
