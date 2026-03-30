@@ -18,7 +18,7 @@ if (file_exists($envFile)) {
     }
 }
 
-// 2. Configurações de conexão (tenta pegar do DATABASE_URL ou variáveis separadas)
+// 2. Configurações de conexão (tenta pegar do env ou usa padrão XAMPP)
 $host = getenv('DB_HOST') ?: '127.0.0.1';
 $port = getenv('DB_PORT') ?: '3306';
 $user = getenv('DB_USER') ?: 'root';
@@ -35,7 +35,9 @@ try {
     
     // Cria o banco de dados se não existir
     $pdo->exec("CREATE DATABASE IF NOT EXISTS `$db` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-    $pdo->exec("USE `$db` text");
+    
+    // CORREÇÃO: Seleciona o banco corretamente (removido o erro 'text')
+    $pdo->exec("USE `$db` ");
     
     echo "🐬 Conectado ao MySQL: $db @ $host\n\n";
 } catch (PDOException $e) {
@@ -148,6 +150,7 @@ echo "\n🌱 Populando dados iniciais...\n";
 $check = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE id = 1")->fetchColumn();
 if ($check == 0) {
     $pdo->exec("INSERT INTO usuarios (id, nome, salario_base, saldo_inicial_mes) VALUES (1, 'Levy', 2300.00, 0.00)");
+    echo "[SEED] Usuário Levy criado.\n";
 }
 
 // Categorias Base
@@ -158,6 +161,7 @@ if ($check == 0) {
         ('Moradia', 'despesa'), 
         ('Salário', 'receita'),
         ('Lazer', 'despesa')");
+    echo "[SEED] Categorias básicas criadas.\n";
 }
 
 echo "\n✅ Migration concluída com sucesso!\n";
