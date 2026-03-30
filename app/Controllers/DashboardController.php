@@ -23,17 +23,16 @@ class DashboardController {
         $partesData = explode('-', $mesReferencia);
         $nomeMesAno = $mesesBr[$partesData[1]] . " de " . $partesData[0];
 
-        // ID fixo do usuário (Levy)
         $usuarioId = 1; 
 
-        // 2. Pega dados do seu Perfil (Saldo Inicial do Banco)
+        // 2. Pega o Saldo Inicial
         $stmt = $this->pdo->prepare("SELECT saldo_inicial_mes FROM usuarios WHERE id = ?");
         $stmt->execute([$usuarioId]);
         $usuario = $stmt->fetch();
         
         $saldoInicial = $usuario['saldo_inicial_mes'] ?? 0;
 
-        // 3. Calcula "Entradas Reais" (Soma das entradas que você registrou no sistema)
+        // 3. Entradas Reais (Filtrado por mês)
         $sqlEntradas = "SELECT SUM(dt.valor_divisao) as total 
                         FROM divisoes_transacao dt 
                         JOIN transacoes t ON dt.transacao_id = t.id 
@@ -44,16 +43,18 @@ class DashboardController {
         $stmtEntradas->execute([$mesReferencia]);
         $entradasReais = $stmtEntradas->fetch()['total'] ?? 0;
 
-        // 4. Calcula "A Receber" (Dívidas de amigos pendentes - Global)
+        // 4. A Receber (CORRIGIDO: AGORA É FILTRADO PELO MÊS SELECIONADO)
         $sqlReceber = "SELECT SUM(dt.valor_divisao) as total 
                        FROM divisoes_transacao dt 
                        JOIN transacoes t ON dt.transacao_id = t.id 
                        WHERE dt.status_pago = 0 
-                       AND dt.pessoa_id IS NOT NULL";
-        $stmtTotalReceber = $this->pdo->query($sqlReceber);
+                       AND dt.pessoa_id IS NOT NULL 
+                       AND t.mes_referencia = ?"; // <--- O SEGREDO ESTÁ AQUI
+        $stmtTotalReceber = $this->pdo->prepare($sqlReceber);
+        $stmtTotalReceber->execute([$mesReferencia]); // Passando o mês para a consulta
         $aReceber = $stmtTotalReceber->fetch()['total'] ?? 0;
 
-        // 5. Calcula "Minhas Despesas" (A SUA parte das contas despesas no mês)
+        // 5. Minhas Despesas (Filtrado por mês)
         $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total 
                         FROM divisoes_transacao dt 
                         JOIN transacoes t ON dt.transacao_id = t.id 
@@ -64,7 +65,7 @@ class DashboardController {
         $stmtMinhasDespesas->execute([$mesReferencia]);
         $minhasDespesas = $stmtMinhasDespesas->fetch()['total'] ?? 0;
 
-        // 6. LÓGICA DE CONTAS FIXAS AUTOMÁTICAS (Comprometimento de Saldo)
+        // 6. Contas Fixas Automáticas Pendentes (Filtrado por mês)
         $sqlFixasAuto = "SELECT SUM(valor_estimado) as total 
                          FROM contas_fixas 
                          WHERE tipo_pagamento = 'automatico' 
@@ -77,10 +78,9 @@ class DashboardController {
         $fixasComprometidas = $stmtFixas->fetch()['total'] ?? 0;
 
         // 7. Saldo Disponível Real
-        // (Saldo Inicial do Banco + Entradas Registradas) - (Despesas Lançadas) - (Fixas Automáticas Pendentes)
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
-        // 8. BUSCA DAS TRANSAÇÕES PARA A TABELA
+        // 8. Busca das Transações para a Tabela
         $sqlLancamentos = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
             (SELECT GROUP_CONCAT(p.nome SEPARATOR ', ') 
