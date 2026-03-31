@@ -30,9 +30,10 @@ class TransacaoController {
         $busca = isset($_GET['q']) ? trim($_GET['q']) : '';
 
         // 1. DADOS PARA A LISTAGEM (Tabela)
+        // Substituído GROUP_CONCAT por STRING_AGG para compatibilidade com PostgreSQL
         $sqlListagem = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT GROUP_CONCAT(p.nome SEPARATOR ', ') 
+            (SELECT STRING_AGG(p.nome, ', ') 
              FROM divisoes_transacao dt2 
              JOIN pessoas p ON dt2.pessoa_id = p.id 
              WHERE dt2.transacao_id = t.id) as amigos_nomes
@@ -44,14 +45,15 @@ class TransacaoController {
         $params = [':mes' => $mesReferencia];
 
         if (!empty($busca)) {
+            // Substituído LIKE por ILIKE para ignorar maiúsculas/minúsculas no PostgreSQL
             $sqlListagem .= " AND (
-                t.descricao LIKE :b1 
-                OR c.nome LIKE :b2 
-                OR cr.nome LIKE :b3 
+                t.descricao ILIKE :b1 
+                OR c.nome ILIKE :b2 
+                OR cr.nome ILIKE :b3 
                 OR EXISTS (
                     SELECT 1 FROM divisoes_transacao dt3 
                     JOIN pessoas p2 ON dt3.pessoa_id = p2.id 
-                    WHERE dt3.transacao_id = t.id AND p2.nome LIKE :b4
+                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
                 )
             )";
             $termo = "%$busca%";
