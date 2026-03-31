@@ -1,6 +1,6 @@
 <?php
 // ==========================================================
-// MIGRATION - Estrutura Levy / MagalFin (MySQL)
+// MIGRATION - Estrutura Levy / MagalFin (PostgreSQL / Supabase)
 // ==========================================================
 // Uso: php migrate.php
 // ==========================================================
@@ -18,14 +18,15 @@ if (file_exists($envFile)) {
     }
 }
 
-// 2. Configurações de conexão (tenta pegar do env ou usa padrão XAMPP)
+// 2. Configurações de conexão (Supabase)
 $host = getenv('DB_HOST') ?: '127.0.0.1';
-$port = getenv('DB_PORT') ?: '3306';
-$user = getenv('DB_USER') ?: 'root';
+$port = getenv('DB_PORT') ?: '5432';
+$user = getenv('DB_USER') ?: 'postgres';
 $pass = getenv('DB_PASS') ?: '';
-$db   = getenv('DB_NAME') ?: 'controle_financeiro';
+$db   = getenv('DB_NAME') ?: 'postgres';
 
-$dsn = "mysql:host=$host;port=$port;charset=utf8mb4";
+// ATENÇÃO AQUI: Mudou de "mysql:" para "pgsql:"
+$dsn = "pgsql:host=$host;port=$port;dbname=$db";
 
 try {
     $pdo = new PDO($dsn, $user, $pass, [
@@ -33,97 +34,83 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
     
-    // Cria o banco de dados se não existir
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$db` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-    
-    // CORREÇÃO: Seleciona o banco corretamente (removido o erro 'text')
-    $pdo->exec("USE `$db` ");
-    
-    echo "🐬 Conectado ao MySQL: $db @ $host\n\n";
+    echo "🐘 Conectado ao PostgreSQL (Supabase) @ $host\n\n";
 } catch (PDOException $e) {
     die("ERRO ao conectar: " . $e->getMessage() . "\n");
 }
 
-// Desativa verificação de chaves estrangeiras para criar as tabelas sem erro de ordem
-$pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-
 // ==========================================================
-// TABELAS (MySQL Syntax)
+// TABELAS (PostgreSQL Syntax)
+// Importante: Ordenado pelas dependências das Chaves Estrangeiras
 // ==========================================================
 
 $tabelas = [
     'usuarios' => "
         CREATE TABLE IF NOT EXISTS usuarios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
             salario_base DECIMAL(10, 2) DEFAULT 0.00,
             saldo_inicial_mes DECIMAL(10, 2) DEFAULT 0.00
-        ) ENGINE=InnoDB
+        )
     ",
 
     'pessoas' => "
         CREATE TABLE IF NOT EXISTS pessoas (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             nome VARCHAR(100) NOT NULL
-        ) ENGINE=InnoDB
+        )
     ",
 
     'cartoes' => "
         CREATE TABLE IF NOT EXISTS cartoes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             nome_cartao VARCHAR(50),
             nome VARCHAR(100) NOT NULL
-        ) ENGINE=InnoDB
+        )
     ",
 
     'categorias' => "
         CREATE TABLE IF NOT EXISTS categorias (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             nome VARCHAR(50) NOT NULL,
-            tipo ENUM('receita', 'despesa') NOT NULL
-        ) ENGINE=InnoDB
+            tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('receita', 'despesa'))
+        )
     ",
 
     'transacoes' => "
         CREATE TABLE IF NOT EXISTS transacoes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             descricao VARCHAR(255) NOT NULL,
             valor_total DECIMAL(10, 2) NOT NULL,
-            tipo ENUM('receita', 'despesa') NOT NULL,
+            tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('receita', 'despesa')),
             data_movimentacao DATE NOT NULL,
             mes_referencia VARCHAR(7) NOT NULL,
-            categoria_id INT,
-            cartao_id INT,
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL,
-            FOREIGN KEY (cartao_id) REFERENCES cartoes(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB
+            categoria_id INT REFERENCES categorias(id) ON DELETE SET NULL,
+            cartao_id INT REFERENCES cartoes(id) ON DELETE SET NULL
+        )
     ",
 
     'divisoes_transacao' => "
         CREATE TABLE IF NOT EXISTS divisoes_transacao (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            transacao_id INT NOT NULL,
-            pessoa_id INT,
+            id SERIAL PRIMARY KEY,
+            transacao_id INT NOT NULL REFERENCES transacoes(id) ON DELETE CASCADE,
+            pessoa_id INT REFERENCES pessoas(id) ON DELETE SET NULL,
             valor_divisao DECIMAL(10, 2) NOT NULL,
-            status_pago TINYINT(1) DEFAULT 0,
-            FOREIGN KEY (transacao_id) REFERENCES transacoes(id) ON DELETE CASCADE,
-            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB
+            status_pago SMALLINT DEFAULT 0
+        )
     ",
 
     'contas_fixas' => "
         CREATE TABLE IF NOT EXISTS contas_fixas (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             descricao VARCHAR(255) NOT NULL,
             valor_estimado DECIMAL(10, 2) NOT NULL,
             dia_vencimento INT NOT NULL,
-            categoria_id INT,
-            cartao_id INT,
-            tipo_pagamento ENUM('automatico', 'manual') DEFAULT 'manual',
-            ativo TINYINT(1) DEFAULT 1,
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL,
-            FOREIGN KEY (cartao_id) REFERENCES cartoes(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB
+            categoria_id INT REFERENCES categorias(id) ON DELETE SET NULL,
+            cartao_id INT REFERENCES cartoes(id) ON DELETE SET NULL,
+            tipo_pagamento VARCHAR(20) DEFAULT 'manual' CHECK (tipo_pagamento IN ('automatico', 'manual')),
+            ativo SMALLINT DEFAULT 1
+        )
     "
 ];
 
@@ -137,9 +124,6 @@ foreach ($tabelas as $nome => $sql) {
     }
 }
 
-// Reativa verificação de chaves estrangeiras
-$pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-
 // ==========================================================
 // SEED - Dados Iniciais de Teste
 // ==========================================================
@@ -147,9 +131,9 @@ $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 echo "\n🌱 Populando dados iniciais...\n";
 
 // Usuário Levy
-$check = $pdo->query("SELECT COUNT(*) FROM usuarios WHERE id = 1")->fetchColumn();
+$check = $pdo->query("SELECT COUNT(*) FROM usuarios")->fetchColumn();
 if ($check == 0) {
-    $pdo->exec("INSERT INTO usuarios (id, nome, salario_base, saldo_inicial_mes) VALUES (1, 'Levy', 2300.00, 0.00)");
+    $pdo->exec("INSERT INTO usuarios (nome, salario_base, saldo_inicial_mes) VALUES ('Levy', 2300.00, 0.00)");
     echo "[SEED] Usuário Levy criado.\n";
 }
 
@@ -164,4 +148,4 @@ if ($check == 0) {
     echo "[SEED] Categorias básicas criadas.\n";
 }
 
-echo "\n✅ Migration concluída com sucesso!\n";
+echo "\n✅ Migration concluída com sucesso no Supabase!\n";

@@ -43,15 +43,15 @@ class DashboardController {
         $stmtEntradas->execute([$mesReferencia]);
         $entradasReais = $stmtEntradas->fetch()['total'] ?? 0;
 
-        // 4. A Receber (CORRIGIDO: AGORA É FILTRADO PELO MÊS SELECIONADO)
+        // 4. A Receber (Filtrado por mês)
         $sqlReceber = "SELECT SUM(dt.valor_divisao) as total 
                        FROM divisoes_transacao dt 
                        JOIN transacoes t ON dt.transacao_id = t.id 
                        WHERE dt.status_pago = 0 
                        AND dt.pessoa_id IS NOT NULL 
-                       AND t.mes_referencia = ?"; // <--- O SEGREDO ESTÁ AQUI
+                       AND t.mes_referencia = ?";
         $stmtTotalReceber = $this->pdo->prepare($sqlReceber);
-        $stmtTotalReceber->execute([$mesReferencia]); // Passando o mês para a consulta
+        $stmtTotalReceber->execute([$mesReferencia]);
         $aReceber = $stmtTotalReceber->fetch()['total'] ?? 0;
 
         // 5. Minhas Despesas (Filtrado por mês)
@@ -80,10 +80,10 @@ class DashboardController {
         // 7. Saldo Disponível Real
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
-        // 8. Busca das Transações para a Tabela
+        // 8. Busca das Transações para a Tabela (Substituído GROUP_CONCAT por STRING_AGG)
         $sqlLancamentos = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT GROUP_CONCAT(p.nome SEPARATOR ', ') 
+            (SELECT STRING_AGG(p.nome, ', ') 
              FROM divisoes_transacao dt2 
              JOIN pessoas p ON dt2.pessoa_id = p.id 
              WHERE dt2.transacao_id = t.id) as amigos_nomes
@@ -95,14 +95,15 @@ class DashboardController {
         $params = [':mes' => $mesReferencia];
 
         if (!empty($busca)) {
+            // Substituído LIKE por ILIKE para o Postgres ignorar maiúsculas/minúsculas
             $sqlLancamentos .= " AND (
-                t.descricao LIKE :b1 
-                OR c.nome LIKE :b2 
-                OR cr.nome LIKE :b3 
+                t.descricao ILIKE :b1 
+                OR c.nome ILIKE :b2 
+                OR cr.nome ILIKE :b3 
                 OR EXISTS (
                     SELECT 1 FROM divisoes_transacao dt3 
                     JOIN pessoas p2 ON dt3.pessoa_id = p2.id 
-                    WHERE dt3.transacao_id = t.id AND p2.nome LIKE :b4
+                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
                 )
             )";
             
