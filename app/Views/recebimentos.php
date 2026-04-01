@@ -7,13 +7,12 @@ function getCorAmigo($nome) {
     if (strpos($nomeStr, 'pais') !== false) return ['bg' => 'bg-cyan-100', 'text' => 'text-cyan-700', 'border' => 'border-cyan-200'];
     if (strpos($nomeStr, 'lucio') !== false) return ['bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'border' => 'border-purple-200'];
     if (strpos($nomeStr, 'vera') !== false) return ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'border' => 'border-red-200'];
-    
+
     return ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'border' => 'border-indigo-200'];
 }
 ?>
 
 <div class="max-w-7xl mx-auto w-full">
-    
     <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h2 class="text-2xl font-bold text-slate-700">Dívidas de Amigos (A Receber)</h2>
@@ -22,13 +21,11 @@ function getCorAmigo($nome) {
         
         <div class="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
             <form method="GET" action="/financeiro/public/index.php/recebimentos" class="w-full sm:w-auto">
-                <input type="month" name="mes" value="<?= htmlspecialchars($mesReferencia) ?>" 
-                       class="w-full sm:w-auto border-slate-200 rounded-lg text-sm text-slate-600 focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2 cursor-pointer shadow-sm"
-                       onchange="this.form.submit()">
+                <input type="month" name="mes" value="<?= htmlspecialchars($mesReferencia) ?>" class="w-full sm:w-auto border-slate-200 rounded-lg text-sm text-slate-600 focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2 cursor-pointer shadow-sm" onchange="this.form.submit()">
             </form>
 
             <div class="w-full sm:w-auto text-right bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex sm:block justify-between items-center">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total no Mês</span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total no mês</span>
                 <span class="text-xl font-black text-emerald-500">R$ <?= number_format($totalGeral ?? 0, 2, ',', '.') ?></span>
             </div>
         </div>
@@ -45,15 +42,13 @@ function getCorAmigo($nome) {
         <?php if (empty($pessoasAgrupadas)): ?>
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-10 text-center">
                 <span class="text-4xl block mb-2">🎉</span>
-                <p class="text-slate-500 font-bold">Ninguém te deve nada neste mês!</p>
+                <p class="text-slate-500 font-bold">Ninguém te deve nada neste mês.</p>
             </div>
         <?php else: ?>
-            
             <?php foreach ($pessoasAgrupadas as $pId => $pessoa): ?>
                 <?php $cores = getCorAmigo($pessoa['nome']); ?>
                 
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    
                     <div onclick="toggleSanfona('amigo-<?= $pId ?>')" class="w-full flex flex-col md:flex-row justify-between items-start md:items-center p-5 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer gap-4 md:gap-0">
                         <div class="flex items-center gap-4">
                             <div class="w-10 h-10 rounded-full <?= $cores['bg'] ?> <?= $cores['text'] ?> flex items-center justify-center font-black text-lg border <?= $cores['border'] ?>">
@@ -65,16 +60,15 @@ function getCorAmigo($nome) {
                             </div>
                         </div>
                         
-                        <div class="flex items-center gap-4 w-full md:w-auto justify-end">
+                        <div class="flex items-center gap-3 w-full md:w-auto justify-end">
                             <span class="text-lg font-black text-rose-500 mr-2">R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?></span>
-                            
-                            <a href="/financeiro/public/index.php/baixar-recebimento?pessoa_id=<?= $pId ?>&mes=<?= $mesReferencia ?>" 
-                               onclick="event.stopPropagation(); return confirm('Deseja dar baixa no valor TOTAL de R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?> de <?= htmlspecialchars($pessoa['nome']) ?> referente a este mês?');"
-                               class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1">
+                            <a href="/financeiro/public/index.php/relatorio-pessoa?pessoa_id=<?= $pId ?>&mes=<?= urlencode($mesReferencia) ?>" onclick="event.stopPropagation()" target="_blank" class="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100" title="Gerar relatório em PDF">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M7 4h7l5 5v9a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
+                            </a>
+                            <a href="/financeiro/public/index.php/baixar-recebimento?pessoa_id=<?= $pId ?>&mes=<?= $mesReferencia ?>" onclick="event.stopPropagation(); return confirm('Deseja dar baixa no valor TOTAL de R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?> de <?= htmlspecialchars($pessoa['nome']) ?> referente a este mês?');" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 Quitar Tudo
                             </a>
-
                             <svg id="icone-amigo-<?= $pId ?>" class="w-5 h-5 text-slate-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
                     </div>
@@ -96,16 +90,10 @@ function getCorAmigo($nome) {
                                             <div class="font-bold text-slate-600"><?= date('d/m/Y', strtotime($item['data_movimentacao'])) ?></div>
                                             <div class="text-[9px] uppercase text-slate-400 font-bold">Ref: <?= $item['mes_referencia'] ?></div>
                                         </td>
-                                        <td class="px-6 py-4 font-bold text-slate-700">
-                                            <?= htmlspecialchars($item['descricao']) ?>
-                                        </td>
-                                        <td class="px-6 py-4 text-right font-black text-slate-600">
-                                            R$ <?= number_format($item['valor_divisao'], 2, ',', '.') ?>
-                                        </td>
+                                        <td class="px-6 py-4 font-bold text-slate-700"><?= htmlspecialchars($item['descricao']) ?></td>
+                                        <td class="px-6 py-4 text-right font-black text-slate-600">R$ <?= number_format($item['valor_divisao'], 2, ',', '.') ?></td>
                                         <td class="px-6 py-4 text-center">
-                                            <a href="/financeiro/public/index.php/baixar-recebimento?id=<?= $item['divisao_id'] ?>&mes=<?= $mesReferencia ?>" 
-                                               onclick="return confirm('Confirmar o recebimento deste valor?')"
-                                               class="inline-block bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm">
+                                            <a href="/financeiro/public/index.php/baixar-recebimento?id=<?= $item['divisao_id'] ?>&mes=<?= $mesReferencia ?>" onclick="return confirm('Confirmar o recebimento deste valor?')" class="inline-block bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm">
                                                 Confirmar Pagamento
                                             </a>
                                         </td>
@@ -116,7 +104,6 @@ function getCorAmigo($nome) {
                     </div>
                 </div>
             <?php endforeach; ?>
-
         <?php endif; ?>
     </div>
 </div>
@@ -125,9 +112,7 @@ function getCorAmigo($nome) {
     function toggleSanfona(id) {
         const conteudo = document.getElementById(id);
         const icone = document.getElementById('icone-' + id);
-        
         conteudo.classList.toggle('hidden');
-        
         if (conteudo.classList.contains('hidden')) {
             icone.classList.remove('rotate-180');
         } else {

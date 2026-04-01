@@ -9,11 +9,13 @@ class DashboardController {
     }
 
     public function index() {
-        // 1. Filtros de busca e mês
         $mesReferencia = $_GET['mes'] ?? date('Y-m');
-        $busca = isset($_GET['q']) ? trim($_GET['q']) : ''; 
+        if (!preg_match('/^\d{4}-\d{2}$/', $mesReferencia)) {
+            $mesReferencia = date('Y-m');
+        }
 
-        // Tradução dos meses para Português
+        $busca = isset($_GET['q']) ? trim($_GET['q']) : '';
+
         $mesesBr = [
             '01' => 'Janeiro', '02' => 'Fevereiro', '03' => 'Março', '04' => 'Abril',
             '05' => 'Maio', '06' => 'Junho', '07' => 'Julho', '08' => 'Agosto',
@@ -21,71 +23,101 @@ class DashboardController {
         ];
 
         $partesData = explode('-', $mesReferencia);
-        $nomeMesAno = $mesesBr[$partesData[1]] . " de " . $partesData[0];
+        $nomeMesAno = $mesesBr[$partesData[1]] . ' de ' . $partesData[0];
 
-        $usuarioId = 1; 
+        $usuarioId = 1;
 
-        // 2. Pega o Saldo Inicial
         $stmt = $this->pdo->prepare("SELECT saldo_inicial_mes FROM usuarios WHERE id = ?");
         $stmt->execute([$usuarioId]);
         $usuario = $stmt->fetch();
-        
-        $saldoInicial = $usuario['saldo_inicial_mes'] ?? 0;
+        $saldoInicial = (float) ($usuario['saldo_inicial_mes'] ?? 0);
 
-        // 3. Entradas Reais (Filtrado por mês)
-        $sqlEntradas = "SELECT SUM(dt.valor_divisao) as total 
-                        FROM divisoes_transacao dt 
-                        JOIN transacoes t ON dt.transacao_id = t.id 
-                        WHERE dt.pessoa_id IS NULL 
-                        AND t.tipo = 'entrada' 
-                        AND t.mes_referencia = ?";
+        $sqlEntradas = "SELECT SUM(dt.valor_divisao) as total
+                        FROM divisoes_transacao dt
+                        JOIN transacoes t ON dt.transacao_id = t.id
+                        WHERE dt.pessoa_id IS NULL
+                          AND t.tipo = 'entrada'
+                          AND t.mes_referencia = ?";
         $stmtEntradas = $this->pdo->prepare($sqlEntradas);
         $stmtEntradas->execute([$mesReferencia]);
-        $entradasReais = $stmtEntradas->fetch()['total'] ?? 0;
+        $entradasReais = (float) ($stmtEntradas->fetch()['total'] ?? 0);
 
-        // 4. A Receber (Filtrado por mês)
-        $sqlReceber = "SELECT SUM(dt.valor_divisao) as total 
-                       FROM divisoes_transacao dt 
-                       JOIN transacoes t ON dt.transacao_id = t.id 
-                       WHERE dt.status_pago = 0 
-                       AND dt.pessoa_id IS NOT NULL 
-                       AND t.mes_referencia = ?";
+        $sqlReceber = "SELECT SUM(dt.valor_divisao) as total
+                       FROM divisoes_transacao dt
+                       JOIN transacoes t ON dt.transacao_id = t.id
+                       WHERE dt.status_pago = 0
+                         AND dt.pessoa_id IS NOT NULL
+                         AND t.mes_referencia = ?";
         $stmtTotalReceber = $this->pdo->prepare($sqlReceber);
         $stmtTotalReceber->execute([$mesReferencia]);
-        $aReceber = $stmtTotalReceber->fetch()['total'] ?? 0;
+        $aReceber = (float) ($stmtTotalReceber->fetch()['total'] ?? 0);
 
-        // 5. Minhas Despesas (Filtrado por mês)
-        $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total 
-                        FROM divisoes_transacao dt 
-                        JOIN transacoes t ON dt.transacao_id = t.id 
-                        WHERE dt.pessoa_id IS NULL 
-                        AND t.tipo = 'despesa' 
-                        AND t.mes_referencia = ?";
+        $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total
+                        FROM divisoes_transacao dt
+                        JOIN transacoes t ON dt.transacao_id = t.id
+                        WHERE dt.pessoa_id IS NULL
+                          AND t.tipo = 'despesa'
+                          AND t.mes_referencia = ?";
         $stmtMinhasDespesas = $this->pdo->prepare($sqlDespesas);
         $stmtMinhasDespesas->execute([$mesReferencia]);
-        $minhasDespesas = $stmtMinhasDespesas->fetch()['total'] ?? 0;
+        $minhasDespesas = (float) ($stmtMinhasDespesas->fetch()['total'] ?? 0);
 
-        // 6. Contas Fixas Automáticas Pendentes (Filtrado por mês)
-        $sqlFixasAuto = "SELECT SUM(valor_estimado) as total 
-                         FROM contas_fixas 
-                         WHERE tipo_pagamento = 'automatico' 
-                         AND ativo = 1 
-                         AND descricao NOT IN (
-                             SELECT descricao FROM transacoes WHERE mes_referencia = ?
-                         )";
+        $sqlFixasAuto = "SELECT SUM(valor_estimado) as total
+                         FROM contas_fixas
+                         WHERE tipo_pagamento = 'automatico'
+                           AND ativo = 1
+                           AND descricao NOT IN (
+                               SELECT descricao FROM transacoes WHERE mes_referencia = ?
+                           )";
         $stmtFixas = $this->pdo->prepare($sqlFixasAuto);
         $stmtFixas->execute([$mesReferencia]);
-        $fixasComprometidas = $stmtFixas->fetch()['total'] ?? 0;
+        $fixasComprometidas = (float) ($stmtFixas->fetch()['total'] ?? 0);
 
-        // 7. Saldo Disponível Real
+        $sqlGraficoCategorias = "SELECT
+                                    COALESCE(c.nome, 'Sem categoria') AS categoria_nome,
+                                    SUM(dt.valor_divisao) AS total
+                                 FROM divisoes_transacao dt
+                                 JOIN transacoes t ON dt.transacao_id = t.id
+                                 LEFT JOIN categorias c ON t.categoria_id = c.id
+                                 WHERE dt.pessoa_id IS NULL
+                                   AND t.tipo = 'despesa'
+                                   AND t.mes_referencia = ?
+                                 GROUP BY COALESCE(c.nome, 'Sem categoria')
+                                 ORDER BY total DESC, categoria_nome ASC";
+        $stmtGraficoCategorias = $this->pdo->prepare($sqlGraficoCategorias);
+        $stmtGraficoCategorias->execute([$mesReferencia]);
+        $gastosPorCategoria = $stmtGraficoCategorias->fetchAll();
+
+        $coresGraficoBase = [
+            '#6366F1',
+            '#10B981',
+            '#F59E0B',
+            '#EF4444',
+            '#06B6D4',
+            '#8B5CF6',
+            '#F97316',
+            '#14B8A6',
+            '#EC4899',
+            '#84CC16'
+        ];
+
+        $graficoCategoriasLabels = [];
+        $graficoCategoriasValores = [];
+        $graficoCategoriasCores = [];
+
+        foreach ($gastosPorCategoria as $index => $categoria) {
+            $graficoCategoriasLabels[] = $categoria['categoria_nome'];
+            $graficoCategoriasValores[] = (float) $categoria['total'];
+            $graficoCategoriasCores[] = $coresGraficoBase[$index % count($coresGraficoBase)];
+        }
+
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
-        // 8. Busca das Transações para a Tabela (Substituído GROUP_CONCAT por STRING_AGG)
         $sqlLancamentos = "
             SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT STRING_AGG(p.nome, ', ') 
-             FROM divisoes_transacao dt2 
-             JOIN pessoas p ON dt2.pessoa_id = p.id 
+            (SELECT STRING_AGG(p.nome, ', ')
+             FROM divisoes_transacao dt2
+             JOIN pessoas p ON dt2.pessoa_id = p.id
              WHERE dt2.transacao_id = t.id) as amigos_nomes
             FROM transacoes t
             LEFT JOIN categorias c ON t.categoria_id = c.id
@@ -94,20 +126,19 @@ class DashboardController {
 
         $params = [':mes' => $mesReferencia];
 
-        if (!empty($busca)) {
-            // Substituído LIKE por ILIKE para o Postgres ignorar maiúsculas/minúsculas
+        if ($busca !== '') {
             $sqlLancamentos .= " AND (
-                t.descricao ILIKE :b1 
-                OR c.nome ILIKE :b2 
-                OR cr.nome ILIKE :b3 
+                t.descricao ILIKE :b1
+                OR c.nome ILIKE :b2
+                OR cr.nome ILIKE :b3
                 OR EXISTS (
-                    SELECT 1 FROM divisoes_transacao dt3 
-                    JOIN pessoas p2 ON dt3.pessoa_id = p2.id 
+                    SELECT 1 FROM divisoes_transacao dt3
+                    JOIN pessoas p2 ON dt3.pessoa_id = p2.id
                     WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
                 )
             )";
-            
-            $termoBusca = "%$busca%";
+
+            $termoBusca = '%' . $busca . '%';
             $params[':b1'] = $termoBusca;
             $params[':b2'] = $termoBusca;
             $params[':b3'] = $termoBusca;
@@ -120,7 +151,6 @@ class DashboardController {
         $stmtLista->execute($params);
         $transacoes = $stmtLista->fetchAll();
 
-        // 9. Envia todas as variáveis para a View
         require_once '../app/Views/dashboard.php';
     }
 }

@@ -1,4 +1,5 @@
 <?php require_once __DIR__ . '/partials/header.php'; ?>
+<?php $mesAtual = $_GET['mes'] ?? date('Y-m'); ?>
 
 <div class="max-w-4xl mx-auto">
     <div class="flex justify-between items-center mb-6">
@@ -12,7 +13,6 @@
     <?php endif; ?>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
         <div class="col-span-1">
             <div class="bg-white rounded-lg shadow p-6">
                 <h3 class="text-lg font-medium text-slate-800 mb-4">Nova Pessoa</h3>
@@ -38,9 +38,15 @@
                         <li class="px-6 py-4 text-slate-500 text-center">Nenhuma pessoa cadastrada ainda.</li>
                     <?php else: ?>
                         <?php foreach($pessoas as $pessoa): ?>
-                            <li class="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
-                                <span class="font-medium text-slate-700"><?= htmlspecialchars($pessoa['nome']) ?></span>
-                                <span class="text-xs text-slate-400">ID: <?= $pessoa['id'] ?></span>
+                            <li class="px-6 py-4 flex items-center justify-between gap-4 hover:bg-slate-50">
+                                <div>
+                                    <span class="font-medium text-slate-700"><?= htmlspecialchars($pessoa['nome']) ?></span>
+                                    <p class="text-xs text-slate-400 mt-1">ID: <?= $pessoa['id'] ?></p>
+                                </div>
+                                <a href="/financeiro/public/index.php/relatorio-pessoa?pessoa_id=<?= $pessoa['id'] ?>&mes=<?= urlencode($mesAtual) ?>" target="_blank" class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M7 4h7l5 5v9a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
+                                    PDF
+                                </a>
                             </li>
                         <?php endforeach; ?>
                     <?php endif; ?>
