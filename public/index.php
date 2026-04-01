@@ -68,6 +68,10 @@ elseif (strpos($uri, '/categorias') !== false) {
         $controller->index();
     }
 }
+elseif (strpos($uri, '/atualizar-categoria') !== false) {
+    require_once '../app/Controllers/CategoriaController.php';
+    (new CategoriaController($pdo))->atualizar();
+}
 elseif (strpos($uri, '/deletar-categoria') !== false) {
     require_once '../app/Controllers/CategoriaController.php';
     (new CategoriaController($pdo))->deletar();
