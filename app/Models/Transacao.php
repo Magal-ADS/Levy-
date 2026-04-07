@@ -21,7 +21,8 @@ class Transacao {
             // 2. Prepara e insere a transação principal
             $sqlTransacao = "INSERT INTO transacoes 
                 (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                RETURNING id";
             
             $stmt = $this->pdo->prepare($sqlTransacao);
             $stmt->execute([
@@ -35,7 +36,7 @@ class Transacao {
             ]);
 
             // 3. Pega o ID da transação recém-criada
-            $transacaoId = $this->pdo->lastInsertId();
+            $transacaoId = $stmt->fetchColumn();
 
             // 4. Prepara a inserção das divisões
             $sqlDivisao = "INSERT INTO divisoes_transacao 
@@ -98,7 +99,8 @@ class Transacao {
             // 3. Cria uma nova transação de RECEITA (Entrada) no seu saldo
             $sqlEntrada = "INSERT INTO transacoes 
                 (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id) 
-                VALUES (?, ?, 'receita', CURDATE(), ?, NULL)";
+                VALUES (?, ?, 'receita', CURRENT_DATE, ?, NULL)
+                RETURNING id";
             
             $stmtEntrada = $this->pdo->prepare($sqlEntrada);
             $stmtEntrada->execute([
@@ -108,7 +110,7 @@ class Transacao {
             ]);
 
             // 4. Registra a divisão dessa entrada para você (pessoa_id = NULL)
-            $novaTransacaoId = $this->pdo->lastInsertId();
+            $novaTransacaoId = $stmtEntrada->fetchColumn();
             $stmtDiv = $this->pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, NULL, ?, 1)");
             $stmtDiv->execute([$novaTransacaoId, $divisao['valor_divisao']]);
 

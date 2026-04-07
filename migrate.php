@@ -86,7 +86,8 @@ $tabelas = [
             data_movimentacao DATE NOT NULL,
             mes_referencia VARCHAR(7) NOT NULL,
             categoria_id INT REFERENCES categorias(id) ON DELETE SET NULL,
-            cartao_id INT REFERENCES cartoes(id) ON DELETE SET NULL
+            cartao_id INT REFERENCES cartoes(id) ON DELETE SET NULL,
+            hash_parcelamento VARCHAR(50) NULL
         )
     ",
 

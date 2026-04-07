@@ -22,6 +22,107 @@ class TransacaoController {
         return (float) $valor;
     }
 
+    private function normalizarDivisoes(array $divisoes, $valorPadrao = 0, $usarCampoValorParcela = false) {
+        if (empty($divisoes)) {
+            return [[
+                'pessoa_id' => null,
+                'valor_divisao' => (float) $valorPadrao,
+                'status_pago' => 1
+            ]];
+        }
+
+        $divisoesNormalizadas = [];
+
+        foreach ($divisoes as $divisao) {
+            $campoValor = $usarCampoValorParcela ? ($divisao['valor'] ?? 0) : ($divisao['valor_divisao'] ?? 0);
+            $valor = $this->limparMoeda($campoValor);
+
+            $divisoesNormalizadas[] = [
+                'pessoa_id' => !empty($divisao['pessoa_id']) ? $divisao['pessoa_id'] : null,
+                'valor_divisao' => $valor,
+                'status_pago' => isset($divisao['status_pago']) ? (int) $divisao['status_pago'] : (!empty($divisao['pessoa_id']) ? 0 : 1)
+            ];
+        }
+
+        $possuiValorPositivo = false;
+        foreach ($divisoesNormalizadas as $divisao) {
+            if ($divisao['valor_divisao'] > 0) {
+                $possuiValorPositivo = true;
+                break;
+            }
+        }
+
+        if (!$possuiValorPositivo) {
+            return [[
+                'pessoa_id' => null,
+                'valor_divisao' => (float) $valorPadrao,
+                'status_pago' => 1
+            ]];
+        }
+
+        return $divisoesNormalizadas;
+    }
+
+    private function inserirTransacao(array $dadosTransacao) {
+        $sql = "INSERT INTO transacoes
+            (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id, hash_parcelamento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            $dadosTransacao['descricao'],
+            $dadosTransacao['valor_total'],
+            $dadosTransacao['tipo'],
+            $dadosTransacao['data_movimentacao'],
+            $dadosTransacao['mes_referencia'],
+            $dadosTransacao['categoria_id'] ?? null,
+            $dadosTransacao['cartao_id'] ?? null,
+            $dadosTransacao['hash_parcelamento'] ?? null
+        ]);
+
+        return $stmt->fetchColumn();
+    }
+
+    private function inserirDivisoes($transacaoId, array $divisoes) {
+        $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?)";
+        $stmtDiv = $this->pdo->prepare($sqlDiv);
+
+        foreach ($divisoes as $divisao) {
+            if (($divisao['valor_divisao'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $stmtDiv->execute([
+                $transacaoId,
+                $divisao['pessoa_id'],
+                $divisao['valor_divisao'],
+                $divisao['status_pago']
+            ]);
+        }
+    }
+
+    private function somarDivisoes(array $divisoes) {
+        $total = 0;
+        foreach ($divisoes as $divisao) {
+            $total += (float) ($divisao['valor_divisao'] ?? 0);
+        }
+        return round($total, 2);
+    }
+
+    private function adicionarMesReferencia($mesReferencia, $mesesParaAdicionar) {
+        $data = DateTime::createFromFormat('!Y-m', $mesReferencia);
+        if (!$data) {
+            throw new Exception('MÃªs de referÃªncia invÃ¡lido para parcelamento.');
+        }
+
+        if ($mesesParaAdicionar > 0) {
+            $data->modify('+' . $mesesParaAdicionar . ' month');
+        }
+
+        return $data->format('Y-m');
+    }
+
     /**
      * TELA PRINCIPAL DE TRANSAÇÕES (Com Gráfico e Filtros)
      */
@@ -107,6 +208,19 @@ class TransacaoController {
     public function salvar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mesReferencia = $_POST['mes_referencia'];
+
+            if (!in_array($_POST['tipo'] ?? '', ['despesa', 'receita'], true)) {
+                throw new Exception('Tipo de transação inválido.');
+            }
+
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['data_movimentacao'] ?? '')) {
+                throw new Exception('Data de movimentação inválida.');
+            }
+
+            if (!preg_match('/^\d{4}-\d{2}$/', $mesReferencia ?? '')) {
+                throw new Exception('Mês de referência inválido.');
+            }
+
             $dadosTransacao = [
                 'descricao'         => $_POST['descricao'],
                 'valor_total'       => $this->limparMoeda($_POST['valor_total']), 
@@ -117,27 +231,70 @@ class TransacaoController {
                 'cartao_id'         => !empty($_POST['cartao_id']) ? $_POST['cartao_id'] : null
             ];
 
-            $divisoes = isset($_POST['divisoes']) ? $_POST['divisoes'] : [];
-            if (empty($divisoes) || count($divisoes) === 0) {
-                $divisoes = [
-                    0 => [
-                        'pessoa_id' => null,
-                        'valor_divisao' => $dadosTransacao['valor_total'],
-                        'status_pago' => 0
-                    ]
-                ];
-            }
-            foreach ($divisoes as $key => $divisao) {
-                $divisoes[$key]['valor_divisao'] = $this->limparMoeda($divisao['valor_divisao']);
-            }
-
-            $transacaoModel = new Transacao($this->pdo);
-
             try {
-                $transacaoModel->salvarTransacaoComDivisao($dadosTransacao, $divisoes);
+                $this->pdo->beginTransaction();
+
+                $isParcelado = !empty($_POST['compra_parcelada']);
+
+                if ($isParcelado) {
+                    $qtdParcelas = max(2, (int) ($_POST['qtd_parcelas'] ?? 0));
+                    $mesPrimeiraParcela = $_POST['mes_primeira_parcela'] ?? '';
+                    $parcelas = $_POST['parcelas'] ?? [];
+                    $hash = uniqid('parc_');
+
+                    if (empty($mesPrimeiraParcela)) {
+                        throw new Exception('Informe o mÃªs da 1Âª parcela.');
+                    }
+
+                    if (count($parcelas) !== $qtdParcelas) {
+                        throw new Exception('A estrutura das parcelas estÃ¡ incompleta. Gere novamente as parcelas antes de salvar.');
+                    }
+
+                    foreach ($parcelas as $indice => $parcela) {
+                        $numeroParcela = $indice + 1;
+                        $valorParcela = $this->limparMoeda($parcela['valor_total'] ?? 0);
+                        $divisoesParcela = $this->normalizarDivisoes($parcela['divisoes'] ?? [], $valorParcela, true);
+                        $somaDivisoes = $this->somarDivisoes($divisoesParcela);
+
+                        if (abs($somaDivisoes - round($valorParcela, 2)) > 0.01) {
+                            throw new Exception("A soma das divisÃµes da parcela {$numeroParcela} nÃ£o bate com o valor da parcela.");
+                        }
+
+                        $mesParcela = $this->adicionarMesReferencia($mesPrimeiraParcela, $indice);
+                        $descricaoParcela = $dadosTransacao['descricao'] . " ({$numeroParcela}/{$qtdParcelas})";
+
+                        $transacaoId = $this->inserirTransacao([
+                            'descricao' => $descricaoParcela,
+                            'valor_total' => $valorParcela,
+                            'tipo' => $dadosTransacao['tipo'],
+                            'data_movimentacao' => $dadosTransacao['data_movimentacao'],
+                            'mes_referencia' => $mesParcela,
+                            'categoria_id' => $dadosTransacao['categoria_id'],
+                            'cartao_id' => $dadosTransacao['cartao_id'],
+                            'hash_parcelamento' => $hash
+                        ]);
+
+                        $this->inserirDivisoes($transacaoId, $divisoesParcela);
+                    }
+                } else {
+                    $divisoes = $this->normalizarDivisoes($_POST['divisoes'] ?? [], $dadosTransacao['valor_total']);
+                    $somaDivisoes = $this->somarDivisoes($divisoes);
+
+                    if (abs($somaDivisoes - round($dadosTransacao['valor_total'], 2)) > 0.01) {
+                        throw new Exception('A soma das divisÃµes precisa ser igual ao valor total da transaÃ§Ã£o.');
+                    }
+
+                    $transacaoId = $this->inserirTransacao($dadosTransacao + ['hash_parcelamento' => null]);
+                    $this->inserirDivisoes($transacaoId, $divisoes);
+                }
+
+                $this->pdo->commit();
                 header("Location: /financeiro/public/index.php?mes={$mesReferencia}&sucesso=1");
                 exit;
             } catch (Exception $e) {
+                if ($this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
                 echo "Erro ao salvar: " . $e->getMessage();
             }
         }
@@ -230,8 +387,18 @@ class TransacaoController {
             $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
             $this->pdo->prepare("DELETE FROM transacoes WHERE id = ?")->execute([$id]);
         }
-        $redirect = $_SERVER['HTTP_REFERER'] ?? '/financeiro/public/index.php?sucesso=1';
-        header("Location: $redirect");
+        $redirect = '/financeiro/public/index.php?sucesso=1';
+
+        if (!empty($_SERVER['HTTP_REFERER'])) {
+            $path = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH) ?? '';
+            $query = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_QUERY) ?? '';
+
+            if (str_starts_with($path, '/financeiro/public/index.php')) {
+                $redirect = $path . ($query !== '' ? '?' . $query : '');
+            }
+        }
+
+        header('Location: ' . $redirect);
         exit;
     }
 }
