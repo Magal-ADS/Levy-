@@ -118,6 +118,15 @@ class TransacaoController {
             ];
 
             $divisoes = isset($_POST['divisoes']) ? $_POST['divisoes'] : [];
+            if (empty($divisoes) || count($divisoes) === 0) {
+                $divisoes = [
+                    0 => [
+                        'pessoa_id' => null,
+                        'valor_divisao' => $dadosTransacao['valor_total'],
+                        'status_pago' => 0
+                    ]
+                ];
+            }
             foreach ($divisoes as $key => $divisao) {
                 $divisoes[$key]['valor_divisao'] = $this->limparMoeda($divisao['valor_divisao']);
             }
@@ -171,6 +180,15 @@ class TransacaoController {
             ];
 
             $divisoes = isset($_POST['divisoes']) ? $_POST['divisoes'] : [];
+            if (empty($divisoes) || count($divisoes) === 0) {
+                $divisoes = [
+                    0 => [
+                        'pessoa_id' => null,
+                        'valor_divisao' => $dadosTransacao['valor_total'],
+                        'status_pago' => 0
+                    ]
+                ];
+            }
             foreach ($divisoes as $key => $divisao) {
                 $divisoes[$key]['valor_divisao'] = $this->limparMoeda($divisao['valor_divisao']);
             }
