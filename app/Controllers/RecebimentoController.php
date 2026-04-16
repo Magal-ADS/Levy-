@@ -48,6 +48,27 @@ class RecebimentoController {
             $pessoasAgrupadas[$pId]['itens'][] = $row;
         }
 
+        // Buscar minhas despesas (parte do usuário principal) para auditoria
+        $sqlMinhas = "SELECT dt.id as divisao_id, t.id as transacao_id, t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia
+                      FROM divisoes_transacao dt
+                      INNER JOIN transacoes t ON t.id = dt.transacao_id
+                      WHERE dt.pessoa_id IS NULL
+                        AND t.mes_referencia = :mes
+                      ORDER BY t.data_movimentacao DESC";
+        $stmtMinhas = $this->pdo->prepare($sqlMinhas);
+        $stmtMinhas->execute(['mes' => $mesReferencia]);
+        $itensMinhas = $stmtMinhas->fetchAll();
+
+        $totalMinhas = 0;
+        foreach ($itensMinhas as $it) {
+            $totalMinhas += (float) $it['valor_divisao'];
+        }
+
+        $minhasDespesas = [
+            'total' => $totalMinhas,
+            'itens' => $itensMinhas
+        ];
+
         require_once '../app/Views/recebimentos.php';
     }
 

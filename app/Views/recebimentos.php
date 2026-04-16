@@ -45,6 +45,51 @@ function getCorAmigo($nome) {
                 <p class="text-slate-500 font-bold">Ninguém te deve nada neste mês.</p>
             </div>
         <?php else: ?>
+
+            <!-- Card: Minhas Despesas Detalhadas (Auditoria) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div onclick="toggleSanfona('meus-gastos')" class="w-full flex flex-col md:flex-row justify-between items-start md:items-center p-5 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer gap-4 md:gap-0">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-lg border border-indigo-200">
+                            M
+                        </div>
+                        <div class="text-left">
+                            <h3 class="font-bold text-lg text-slate-700 leading-tight">Minhas Despesas Detalhadas (Auditoria)</h3>
+                            <span class="text-[10px] uppercase font-bold text-slate-400"><?= count($minhasDespesas['itens']) ?> item(s)</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+                        <span class="text-lg font-black text-slate-700 mr-2">R$ <?= number_format($minhasDespesas['total'], 2, ',', '.') ?></span>
+                        <svg id="icone-meus-gastos" class="w-5 h-5 text-slate-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+
+                <div id="meus-gastos" class="hidden border-t border-slate-200 bg-white">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 border-b border-slate-100">
+                            <tr>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data / Mês</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição da Conta</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Valor (sua parte)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <?php foreach ($minhasDespesas['itens'] as $item): ?>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="px-6 py-4">
+                                        <div class="font-bold text-slate-600"><?= date('d/m/Y', strtotime($item['data_movimentacao'])) ?></div>
+                                        <div class="text-[9px] uppercase text-slate-400 font-bold">Ref: <?= $item['mes_referencia'] ?></div>
+                                    </td>
+                                    <td class="px-6 py-4 font-bold text-slate-700"><?= htmlspecialchars($item['descricao']) ?></td>
+                                    <td class="px-6 py-4 text-right font-black text-slate-600">R$ <?= number_format($item['valor_divisao'], 2, ',', '.') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <?php foreach ($pessoasAgrupadas as $pId => $pessoa): ?>
                 <?php $cores = getCorAmigo($pessoa['nome']); ?>
                 

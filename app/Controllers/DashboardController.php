@@ -14,7 +14,7 @@ class DashboardController {
             $mesReferencia = date('Y-m');
         }
 
-        $busca = isset($_GET['q']) ? trim($_GET['q']) : '';
+        $busca = isset($_GET['busca']) ? trim($_GET['busca']) : (isset($_GET['q']) ? trim($_GET['q']) : '');
 
         $mesesBr = [
             '01' => 'Janeiro', '02' => 'Fevereiro', '03' => 'Março', '04' => 'Abril',
@@ -111,15 +111,25 @@ class DashboardController {
             $graficoCategoriasCores[] = $coresGraficoBase[$index % count($coresGraficoBase)];
         }
 
+        // carregar categorias e pessoas para o filtro
+        $stmtCat = $this->pdo->prepare("SELECT id, nome FROM categorias ORDER BY nome ASC");
+        $stmtCat->execute();
+        $categorias = $stmtCat->fetchAll();
+
+        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas ORDER BY nome ASC");
+        $stmtPessoas->execute();
+        $pessoas = $stmtPessoas->fetchAll();
+
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
         $sqlLancamentos = "
-            SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
+            SELECT DISTINCT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
             (SELECT STRING_AGG(p.nome, ', ')
              FROM divisoes_transacao dt2
              JOIN pessoas p ON dt2.pessoa_id = p.id
              WHERE dt2.transacao_id = t.id) as amigos_nomes
             FROM transacoes t
+            LEFT JOIN divisoes_transacao dt ON t.id = dt.transacao_id
             LEFT JOIN categorias c ON t.categoria_id = c.id
             LEFT JOIN cartoes cr ON t.cartao_id = cr.id
             WHERE t.mes_referencia = :mes";
@@ -129,6 +139,8 @@ class DashboardController {
         if ($busca !== '') {
             $sqlLancamentos .= " AND (
                 t.descricao ILIKE :b1
+                OR REPLACE(t.valor_total::TEXT, '.', ',') ILIKE :b1
+                OR t.valor_total::TEXT ILIKE :b1
                 OR c.nome ILIKE :b2
                 OR cr.nome ILIKE :b3
                 OR EXISTS (
@@ -145,11 +157,37 @@ class DashboardController {
             $params[':b4'] = $termoBusca;
         }
 
+        // aplicar filtro por categoria se informado
+        if (isset($_GET['categoria_id']) && $_GET['categoria_id'] !== '') {
+            $sqlLancamentos .= " AND t.categoria_id = :categoria_id";
+            $params[':categoria_id'] = (int) $_GET['categoria_id'];
+        }
+
+        // aplicar filtro por pessoa (mine -> minhas divisões / vazio -> todos / id numérico -> amigo específico)
+        if (isset($_GET['pessoa_id']) && $_GET['pessoa_id'] !== '') {
+            $p = $_GET['pessoa_id'];
+            if ($p === 'mine' || $p === '0') {
+                $sqlLancamentos .= " AND dt.pessoa_id IS NULL";
+            } elseif (is_numeric($p)) {
+                $sqlLancamentos .= " AND dt.pessoa_id = :pessoa_id";
+                $params[':pessoa_id'] = (int) $p;
+            }
+        }
+
         $sqlLancamentos .= " ORDER BY t.data_movimentacao DESC";
 
         $stmtLista = $this->pdo->prepare($sqlLancamentos);
         $stmtLista->execute($params);
         $transacoes = $stmtLista->fetchAll();
+
+        // detectar requisição AJAX
+        $isAjax = (isset($_GET['ajax']) && $_GET['ajax'] === '1') || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+
+        if ($isAjax) {
+            // responder apenas as linhas da tabela
+            require_once __DIR__ . '/../Views/partials/tabela_lancamentos.php';
+            exit;
+        }
 
         require_once '../app/Views/dashboard.php';
     }

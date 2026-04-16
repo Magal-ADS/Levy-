@@ -118,17 +118,48 @@
         <div class="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
             <h3 class="text-lg font-bold text-slate-800">Lançamentos Recentes</h3>
             
-            <form method="GET" class="flex w-full md:w-auto gap-2">
+            <form method="GET" class="flex w-full md:w-auto gap-2 flex-col md:flex-row">
                 <input type="hidden" name="mes" value="<?= $mesReferencia ?>">
                 <div class="relative w-full md:w-80">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     </span>
-                    <input type="text" name="q" value="<?= htmlspecialchars($_GET['q'] ?? '') ?>" placeholder="Buscar descrição, amigo ou categoria..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm shadow-sm">
+                    <input type="text" id="input-busca-dinamica" name="busca" value="<?= htmlspecialchars($_GET['busca'] ?? $_GET['q'] ?? '') ?>" placeholder="Buscar descrição, valor, amigo ou categoria..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm shadow-sm">
                 </div>
-                <button type="submit" class="bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-700 transition-colors shadow">
-                    Filtrar
-                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="toggle-filtros" class="bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-700 transition-colors shadow">
+                        Filtro Avançado
+                    </button>
+                </div>
+
+                <div id="painel-filtros" class="mt-3 w-full hidden bg-white p-4 rounded border border-slate-200 shadow-md">
+                    <div class="flex flex-col md:flex-row gap-3 items-center">
+                        <div class="flex-1">
+                            <label class="text-xs text-slate-500">Categoria</label>
+                            <select name="categoria_id" class="w-full mt-1 border rounded p-2 text-sm">
+                                <option value="">Todas as categorias</option>
+                                <?php foreach($categorias as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>" <?= (isset($_GET['categoria_id']) && $_GET['categoria_id']==$cat['id']) ? 'selected' : '' ?>><?= htmlspecialchars($cat['nome']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs text-slate-500">Pessoas</label>
+                            <select name="pessoa_id" class="w-full mt-1 border rounded p-2 text-sm">
+                                <option value="">Todos</option>
+                                <option value="mine" <?= (isset($_GET['pessoa_id']) && $_GET['pessoa_id']=='mine') ? 'selected' : '' ?>>Somente Eu / Meus Gastos</option>
+                                <?php foreach($pessoas as $p): ?>
+                                    <option value="<?= $p['id'] ?>" <?= (isset($_GET['pessoa_id']) && $_GET['pessoa_id']==$p['id']) ? 'selected' : '' ?>><?= htmlspecialchars($p['nome']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="flex-none">
+                            <button type="submit" class="bg-emerald-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors shadow">
+                                Aplicar Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </form>
         </div>
 
@@ -143,7 +174,7 @@
                         <th class="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Ações</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody id="tbody-lancamentos" class="bg-white divide-y divide-gray-200">
                     <?php if(empty($transacoes)): ?>
                         <tr>
                             <td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">Nenhuma transação encontrada para os filtros selecionados.</td>
@@ -228,5 +259,72 @@
     }
 </script>
 <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('toggle-filtros');
+    var panel = document.getElementById('painel-filtros');
+    if (btn && panel) {
+        btn.addEventListener('click', function(){
+            panel.classList.toggle('hidden');
+        });
+    }
+});
+</script>
+
+<script>
+// Live search with debounce
+document.addEventListener('DOMContentLoaded', function(){
+    const input = document.getElementById('input-busca-dinamica');
+    const tbody = document.getElementById('tbody-lancamentos');
+    let timeout = null;
+
+    function getParamValue(name) {
+        const el = document.querySelector(`[name="${name}"]`);
+        return el ? el.value : '';
+    }
+
+    async function fetchRows() {
+        const mes = getParamValue('mes');
+        const busca = getParamValue('busca');
+        const categoria_id = getParamValue('categoria_id');
+        const pessoa_id = getParamValue('pessoa_id');
+
+        const params = new URLSearchParams();
+        if (mes) params.set('mes', mes);
+        if (busca) params.set('busca', busca);
+        if (categoria_id) params.set('categoria_id', categoria_id);
+        if (pessoa_id) params.set('pessoa_id', pessoa_id);
+        params.set('ajax', '1');
+
+        try {
+            const res = await fetch('/financeiro/public/index.php?' + params.toString(), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            if (!res.ok) return;
+            const html = await res.text();
+            tbody.innerHTML = html;
+        } catch (e) {
+            console.error('Erro ao buscar lançamentos', e);
+        }
+    }
+
+    if (input) {
+        input.addEventListener('input', function(){
+            clearTimeout(timeout);
+            timeout = setTimeout(fetchRows, 300);
+        });
+    }
+
+    // also fetch when filters change
+    const filtros = document.querySelectorAll('[name="categoria_id"],[name="pessoa_id"]');
+    filtros.forEach(f => f.addEventListener('change', function(){
+        clearTimeout(timeout);
+        timeout = setTimeout(fetchRows, 0);
+    }));
+});
+</script>
 
 <?php require_once __DIR__ . '/partials/footer.php'; ?>
