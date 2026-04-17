@@ -112,11 +112,11 @@ echo "\nIniciando importação de 54 registros para $mesReferencia...\n";
 $pdo->beginTransaction();
 
 try {
-    $stmtT = $pdo->prepare("INSERT INTO transacoes (descricao, valor_total, tipo, data_movimentacao, mes_referencia, cartao_id) VALUES (?, ?, 'despesa', ?, ?, ?)");
-    $stmtD = $pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, 0)");
+    $stmtT = $pdo->prepare("INSERT INTO transacoes (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, cartao_id) VALUES (?, ?, ?, 'despesa', ?, ?, ?)");
+    $stmtD = $pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago, status_aceite) VALUES (?, ?, ?, 0, 'aceito')");
 
     foreach ($gastos as $g) {
-        $stmtT->execute([$g['descricao'], $g['valor'], $dataMovimentacao, $mesReferencia, $cartaoId]);
+        $stmtT->execute([1, $g['descricao'], $g['valor'], $dataMovimentacao, $mesReferencia, $cartaoId]);
         $tid = $pdo->lastInsertId();
 
         foreach ($g['divisoes'] as $d) {

@@ -1,9 +1,38 @@
 <?php
 // public/index.php
 
+session_start();
+
 require_once '../config/database.php';
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+// Autenticação: middleware simples
+$publicPaths = ['/login', '/autenticar', '/logout', '/vendor', '/assets', '/css', '/js', '/img', '/public/index.php/login'];
+$requiresAuth = true;
+foreach ($publicPaths as $p) {
+    if (strpos($uri, $p) !== false) {
+        $requiresAuth = false;
+        break;
+    }
+}
+if ($requiresAuth && empty($_SESSION['usuario_id'])) {
+    header('Location: /login');
+    exit;
+}
+
+if (strpos($uri, '/login') !== false) {
+    require_once '../app/Controllers/AuthController.php';
+    (new AuthController($pdo))->login();
+}
+elseif (strpos($uri, '/autenticar') !== false) {
+    require_once '../app/Controllers/AuthController.php';
+    (new AuthController($pdo))->autenticar();
+}
+elseif (strpos($uri, '/logout') !== false) {
+    require_once '../app/Controllers/AuthController.php';
+    (new AuthController($pdo))->logout();
+}
 
 if (strpos($uri, '/nova-conta') !== false) {
     require_once '../app/Controllers/TransacaoController.php';
@@ -101,6 +130,21 @@ elseif (strpos($uri, '/baixar-recebimento') !== false) {
     require_once '../app/Controllers/RecebimentoController.php';
     (new RecebimentoController($pdo))->baixar();
 }
+
+// Rotas para Solicitações (Contas Encaminhadas)
+elseif (strpos($uri, '/solicitacoes/aceitar') !== false) {
+    require_once '../app/Controllers/SolicitacaoController.php';
+    (new SolicitacaoController($pdo))->aceitar();
+}
+elseif (strpos($uri, '/solicitacoes/recusar') !== false) {
+    require_once '../app/Controllers/SolicitacaoController.php';
+    (new SolicitacaoController($pdo))->recusar();
+}
+elseif (strpos($uri, '/solicitacoes') !== false) {
+    require_once '../app/Controllers/SolicitacaoController.php';
+    (new SolicitacaoController($pdo))->index();
+}
+
 elseif (strpos($uri, '/configuracoes') !== false) {
     require_once '../app/Controllers/ConfigController.php';
     (new ConfigController($pdo))->index();
@@ -108,6 +152,14 @@ elseif (strpos($uri, '/configuracoes') !== false) {
 elseif (strpos($uri, '/salvar-configuracoes') !== false) {
     require_once '../app/Controllers/ConfigController.php';
     (new ConfigController($pdo))->salvar();
+}
+elseif (strpos($uri, '/perfil') !== false) {
+    require_once '../app/Controllers/PerfilController.php';
+    (new PerfilController($pdo))->index();
+}
+elseif (strpos($uri, '/atualizar-perfil') !== false) {
+    require_once '../app/Controllers/PerfilController.php';
+    (new PerfilController($pdo))->atualizar();
 }
 else {
     require_once '../app/Controllers/DashboardController.php';

@@ -9,7 +9,10 @@ class CategoriaController {
     }
 
     public function index() {
-        $categorias = $this->pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmt->execute([$usuarioId]);
+        $categorias = $stmt->fetchAll();
         require_once '../app/Views/categorias.php';
     }
 
@@ -28,8 +31,9 @@ class CategoriaController {
                 exit;
             }
 
-            $stmt = $this->pdo->prepare("INSERT INTO categorias (nome, tipo) VALUES (?, ?)");
-            $stmt->execute([$nome, $tipo]);
+            $usuarioId = $_SESSION['usuario_id'] ?? 0;
+            $stmt = $this->pdo->prepare("INSERT INTO categorias (nome, tipo, usuario_id) VALUES (?, ?, ?)");
+            $stmt->execute([$nome, $tipo, $usuarioId]);
         }
 
         header('Location: /financeiro/public/index.php/categorias?sucesso=criada');
@@ -57,8 +61,9 @@ class CategoriaController {
                 exit;
             }
 
-            $stmt = $this->pdo->prepare("UPDATE categorias SET nome = ?, tipo = ? WHERE id = ?");
-            $stmt->execute([$nome, $tipo, $id]);
+            $usuarioId = $_SESSION['usuario_id'] ?? 0;
+            $stmt = $this->pdo->prepare("UPDATE categorias SET nome = ?, tipo = ? WHERE id = ? AND usuario_id = ?");
+            $stmt->execute([$nome, $tipo, $id, $usuarioId]);
         }
 
         header('Location: /financeiro/public/index.php/categorias?sucesso=atualizada');
@@ -69,8 +74,9 @@ class CategoriaController {
         $id = $_GET['id'] ?? null;
         if ($id) {
             try {
-                $stmt = $this->pdo->prepare("DELETE FROM categorias WHERE id = ?");
-                $stmt->execute([$id]);
+                $usuarioId = $_SESSION['usuario_id'] ?? 0;
+                $stmt = $this->pdo->prepare("DELETE FROM categorias WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$id, $usuarioId]);
                 header('Location: /financeiro/public/index.php/categorias?sucesso=deletada');
             } catch (Exception $e) {
                 header('Location: /financeiro/public/index.php/categorias?erro=vinculo');

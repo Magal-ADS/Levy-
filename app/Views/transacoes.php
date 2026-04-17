@@ -53,11 +53,11 @@
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="px-4 py-4 text-slate-500"><?= date('d/m', strtotime($tr['data_movimentacao'])) ?></td>
                                 <td class="px-4 py-4">
-                                    <div class="font-bold text-slate-800"><?= htmlspecialchars($tr['descricao']) ?></div>
+                                    <div class="font-bold text-slate-800"><?= htmlspecialchars($tr['display_descricao'] ?? $tr['descricao']) ?></div>
                                     <div class="text-[9px] text-slate-400 uppercase"><?= $tr['categoria_nome'] ?> • <?= $tr['cartao_nome'] ?? 'PIX/DINHEIRO' ?></div>
                                 </td>
-                                <td class="px-4 py-4 text-right font-black <?= $tr['tipo'] == 'despesa' ? 'text-rose-500' : 'text-emerald-500' ?>">
-                                    R$ <?= number_format($tr['valor_total'], 2, ',', '.') ?>
+                                <td class="px-4 py-4 text-right font-black <?= ($tr['display_tipo'] ?? $tr['tipo']) == 'despesa' ? 'text-rose-500' : 'text-emerald-500' ?>">
+                                    R$ <?= number_format(($tr['display_valor'] ?? $tr['valor_total']), 2, ',', '.') ?>
                                 </td>
                                 <td class="px-4 py-4 text-center space-x-2">
                                     <a href="/financeiro/public/index.php/editar-transacao?id=<?= $tr['id'] ?>" class="text-indigo-400 hover:text-indigo-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></a>

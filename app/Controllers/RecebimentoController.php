@@ -15,6 +15,8 @@ class RecebimentoController {
             $mesReferencia = date('Y-m');
         }
 
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+
         $sql = "SELECT dt.id as divisao_id, p.id as pessoa_id, p.nome as amigo_nome,
                        t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia
                 FROM divisoes_transacao dt
@@ -23,10 +25,11 @@ class RecebimentoController {
                 WHERE dt.status_pago = 0
                   AND dt.pessoa_id IS NOT NULL
                   AND t.mes_referencia = :mes
+                  AND (t.usuario_id = :user_id_1 OR (p.vinculo_usuario_id = :user_id_2 AND dt.status_aceite = 'aceito'))
                 ORDER BY p.nome ASC, t.data_movimentacao DESC";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['mes' => $mesReferencia]);
+        $stmt->execute(['mes' => $mesReferencia, 'user_id_1' => $usuarioId, 'user_id_2' => $usuarioId]);
         $resultados = $stmt->fetchAll();
 
         $pessoasAgrupadas = [];
@@ -85,9 +88,16 @@ class RecebimentoController {
             $mesReferencia = date('Y-m');
         }
 
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
         $dadosRelatorio = $this->buscarRelatorioPessoa((int) $pessoaId, $mesReferencia);
         if (!$dadosRelatorio['pessoa']) {
             header('Location: /financeiro/public/index.php/recebimentos?mes=' . urlencode($mesReferencia) . '&erro=relatorio');
+            exit;
+        }
+
+        // Segurança: se essa pessoa estiver vinculada a um usuário diferente do atual, negar acesso
+        if (!empty($dadosRelatorio['pessoa']['vinculo_usuario_id']) && (int)$dadosRelatorio['pessoa']['vinculo_usuario_id'] !== (int)$usuarioId) {
+            header('Location: /financeiro/public/index.php/recebimentos?mes=' . urlencode($mesReferencia) . '&erro=permissao');
             exit;
         }
 
@@ -129,13 +139,14 @@ class RecebimentoController {
         } elseif (isset($_GET['pessoa_id'])) {
             $pessoaId = $_GET['pessoa_id'];
 
+            $usuarioId = $_SESSION['usuario_id'] ?? 0;
             $stmt = $this->pdo->prepare("
                 SELECT dt.id
                 FROM divisoes_transacao dt
                 JOIN transacoes t ON dt.transacao_id = t.id
-                WHERE dt.pessoa_id = ? AND dt.status_pago = 0 AND t.mes_referencia = ?
+                WHERE dt.pessoa_id = ? AND dt.status_pago = 0 AND t.mes_referencia = ? AND t.usuario_id = ?
             ");
-            $stmt->execute([$pessoaId, $mes]);
+            $stmt->execute([$pessoaId, $mes, $usuarioId]);
             $divisoesPendentes = $stmt->fetchAll();
 
             foreach ($divisoesPendentes as $div) {
@@ -148,10 +159,11 @@ class RecebimentoController {
     }
 
     private function buscarRelatorioPessoa(int $pessoaId, string $mesReferencia): array {
-        $stmtPessoa = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE id = ?");
+        $stmtPessoa = $this->pdo->prepare("SELECT id, nome, vinculo_usuario_id FROM pessoas WHERE id = ?");
         $stmtPessoa->execute([$pessoaId]);
         $pessoa = $stmtPessoa->fetch();
 
+        // Se a pessoa estiver vinculada a um usuário, só incluir divisões aceitas
         $sql = "SELECT
                     t.data_movimentacao,
                     t.descricao,
@@ -161,10 +173,16 @@ class RecebimentoController {
                 FROM divisoes_transacao dt
                 JOIN transacoes t ON t.id = dt.transacao_id
                 WHERE dt.pessoa_id = ?
-                  AND t.mes_referencia = ?
-                ORDER BY t.data_movimentacao ASC, t.id ASC";
+                  AND t.mes_referencia = ?";
+
+        $params = [$pessoaId, $mesReferencia];
+        if (!empty($pessoa['vinculo_usuario_id'])) {
+            $sql .= " AND dt.status_aceite = 'aceito'";
+        }
+
+        $sql .= " ORDER BY t.data_movimentacao ASC, t.id ASC";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$pessoaId, $mesReferencia]);
+        $stmt->execute($params);
         $itens = $stmt->fetchAll();
 
         $totalGeral = 0;

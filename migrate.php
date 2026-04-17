@@ -49,6 +49,7 @@ $tabelas = [
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
             nome VARCHAR(100) NOT NULL,
+            email VARCHAR(150) UNIQUE,
             salario_base DECIMAL(10, 2) DEFAULT 0.00,
             saldo_inicial_mes DECIMAL(10, 2) DEFAULT 0.00
         )
@@ -57,7 +58,8 @@ $tabelas = [
     'pessoas' => "
         CREATE TABLE IF NOT EXISTS pessoas (
             id SERIAL PRIMARY KEY,
-            nome VARCHAR(100) NOT NULL
+            nome VARCHAR(100) NOT NULL,
+            vinculo_usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL
         )
     ",
 
@@ -80,6 +82,7 @@ $tabelas = [
     'transacoes' => "
         CREATE TABLE IF NOT EXISTS transacoes (
             id SERIAL PRIMARY KEY,
+            usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
             descricao VARCHAR(255) NOT NULL,
             valor_total DECIMAL(10, 2) NOT NULL,
             tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('receita', 'despesa')),
@@ -134,7 +137,7 @@ echo "\n🌱 Populando dados iniciais...\n";
 // Usuário Levy
 $check = $pdo->query("SELECT COUNT(*) FROM usuarios")->fetchColumn();
 if ($check == 0) {
-    $pdo->exec("INSERT INTO usuarios (nome, salario_base, saldo_inicial_mes) VALUES ('Levy', 2300.00, 0.00)");
+    $pdo->exec("INSERT INTO usuarios (nome, email, salario_base, saldo_inicial_mes) VALUES ('Levy', 'levy@example.com', 2300.00, 0.00)");
     echo "[SEED] Usuário Levy criado.\n";
 }
 

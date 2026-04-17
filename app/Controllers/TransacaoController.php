@@ -63,14 +63,15 @@ class TransacaoController {
         return $divisoesNormalizadas;
     }
 
-    private function inserirTransacao(array $dadosTransacao) {
+    private function inserirTransacao(array $dadosTransacao, int $usuarioId = 0) {
         $sql = "INSERT INTO transacoes
-            (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id, hash_parcelamento)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id, hash_parcelamento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
+            $usuarioId,
             $dadosTransacao['descricao'],
             $dadosTransacao['valor_total'],
             $dadosTransacao['tipo'],
@@ -85,19 +86,35 @@ class TransacaoController {
     }
 
     private function inserirDivisoes($transacaoId, array $divisoes) {
-        $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?)";
+        // Inserir também status_aceite: 'aceito' para sua parte ou pessoa local; 'pendente' se pessoa vinculada a usuário
+        $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago, status_aceite) VALUES (?, ?, ?, ?, ?)";
         $stmtDiv = $this->pdo->prepare($sqlDiv);
+        $stmtPessoa = $this->pdo->prepare("SELECT vinculo_usuario_id FROM pessoas WHERE id = ?");
 
         foreach ($divisoes as $divisao) {
             if (($divisao['valor_divisao'] ?? 0) <= 0) {
                 continue;
             }
 
+            $pessoaId = $divisao['pessoa_id'] ?? null;
+            $statusAceite = 'aceito';
+
+            if (!empty($pessoaId)) {
+                $stmtPessoa->execute([$pessoaId]);
+                $p = $stmtPessoa->fetch();
+                if ($p && !empty($p['vinculo_usuario_id'])) {
+                    $statusAceite = 'pendente';
+                } else {
+                    $statusAceite = 'aceito';
+                }
+            }
+
             $stmtDiv->execute([
                 $transacaoId,
-                $divisao['pessoa_id'],
+                $pessoaId,
                 $divisao['valor_divisao'],
-                $divisao['status_pago']
+                $divisao['status_pago'],
+                $statusAceite
             ]);
         }
     }
@@ -132,40 +149,11 @@ class TransacaoController {
 
         // 1. DADOS PARA A LISTAGEM (Tabela)
         // Substituído GROUP_CONCAT por STRING_AGG para compatibilidade com PostgreSQL
-        $sqlListagem = "
-            SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT STRING_AGG(p.nome, ', ') 
-             FROM divisoes_transacao dt2 
-             JOIN pessoas p ON dt2.pessoa_id = p.id 
-             WHERE dt2.transacao_id = t.id) as amigos_nomes
-            FROM transacoes t
-            LEFT JOIN categorias c ON t.categoria_id = c.id
-            LEFT JOIN cartoes cr ON t.cartao_id = cr.id
-            WHERE t.mes_referencia = :mes";
-
-        $params = [':mes' => $mesReferencia];
-
-        if (!empty($busca)) {
-            // Substituído LIKE por ILIKE para ignorar maiúsculas/minúsculas no PostgreSQL
-            $sqlListagem .= " AND (
-                t.descricao ILIKE :b1 
-                OR c.nome ILIKE :b2 
-                OR cr.nome ILIKE :b3 
-                OR EXISTS (
-                    SELECT 1 FROM divisoes_transacao dt3 
-                    JOIN pessoas p2 ON dt3.pessoa_id = p2.id 
-                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
-                )
-            )";
-            $termo = "%$busca%";
-            $params[':b1'] = $termo; $params[':b2'] = $termo; 
-            $params[':b3'] = $termo; $params[':b4'] = $termo;
-        }
-
-        $sqlListagem .= " ORDER BY t.data_movimentacao DESC";
-        $stmtLista = $this->pdo->prepare($sqlListagem);
-        $stmtLista->execute($params);
-        $transacoes = $stmtLista->fetchAll();
+        // Usar o model Transacao para respeitar regras de Shared Ledger
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $model = new Transacao($this->pdo);
+        $pessoaFilter = isset($_GET['pessoa_id']) && is_numeric($_GET['pessoa_id']) ? $_GET['pessoa_id'] : null;
+        $transacoes = $model->buscarPorMes($usuarioId, $mesReferencia, $busca, $pessoaFilter);
 
         // 2. DADOS PARA O GRÁFICO (Soma das SUAS despesas por categoria)
         $sqlGrafico = "
@@ -176,11 +164,13 @@ class TransacaoController {
             WHERE t.mes_referencia = ? 
             AND dt.pessoa_id IS NULL 
             AND t.tipo = 'despesa'
+            AND (dt.status_aceite IS NULL OR dt.status_aceite = 'aceito')
+            AND t.usuario_id = ?
             GROUP BY c.nome 
             ORDER BY total DESC";
         
         $stmtG = $this->pdo->prepare($sqlGrafico);
-        $stmtG->execute([$mesReferencia]);
+        $stmtG->execute([$mesReferencia, $usuarioId]);
         $dadosGrafico = $stmtG->fetchAll();
 
         // Variável para o título em português
@@ -198,9 +188,18 @@ class TransacaoController {
     // --- MÉTODOS DE CRIAÇÃO ---
 
     public function nova() {
-        $pessoas = $this->pdo->query("SELECT id, nome FROM pessoas ORDER BY nome ASC")->fetchAll();
-        $categorias = $this->pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
-        $cartoes = $this->pdo->query("SELECT id, nome FROM cartoes ORDER BY nome ASC")->fetchAll();
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $stmtP = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtP->execute([$usuarioId]);
+        $pessoas = $stmtP->fetchAll();
+
+        $stmtC = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtC->execute([$usuarioId]);
+        $categorias = $stmtC->fetchAll();
+
+        $stmtCr = $this->pdo->prepare("SELECT id, nome FROM cartoes WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCr->execute([$usuarioId]);
+        $cartoes = $stmtCr->fetchAll();
 
         require_once '../app/Views/nova-transacao.php';
     }
@@ -272,7 +271,7 @@ class TransacaoController {
                             'categoria_id' => $dadosTransacao['categoria_id'],
                             'cartao_id' => $dadosTransacao['cartao_id'],
                             'hash_parcelamento' => $hash
-                        ]);
+                        ], $usuarioId);
 
                         $this->inserirDivisoes($transacaoId, $divisoesParcela);
                     }
@@ -284,7 +283,7 @@ class TransacaoController {
                         throw new Exception('A soma das divisÃµes precisa ser igual ao valor total da transaÃ§Ã£o.');
                     }
 
-                    $transacaoId = $this->inserirTransacao($dadosTransacao + ['hash_parcelamento' => null]);
+                    $transacaoId = $this->inserirTransacao($dadosTransacao + ['hash_parcelamento' => null], $usuarioId);
                     $this->inserirDivisoes($transacaoId, $divisoes);
                 }
 
@@ -306,8 +305,9 @@ class TransacaoController {
         $id = $_GET['id'] ?? null;
         if (!$id) { header('Location: /financeiro/public/index.php'); exit; }
 
-        $stmt = $this->pdo->prepare("SELECT * FROM transacoes WHERE id = ?");
-        $stmt->execute([$id]);
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $stmt = $this->pdo->prepare("SELECT * FROM transacoes WHERE id = ? AND usuario_id = ?");
+        $stmt->execute([$id, $usuarioId]);
         $transacao = $stmt->fetch();
 
         $stmtDiv = $this->pdo->prepare("SELECT * FROM divisoes_transacao WHERE transacao_id = ?");
@@ -361,14 +361,8 @@ class TransacaoController {
                 ]);
 
                 $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
-                $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?)";
-                $stmtDiv = $this->pdo->prepare($sqlDiv);
-                foreach ($divisoes as $div) {
-                    $stmtDiv->execute([
-                        $id, !empty($div['pessoa_id']) ? $div['pessoa_id'] : null,
-                        $div['valor_divisao'], $div['status_pago']
-                    ]);
-                }
+                // Reutiliza lógica de inserção que já define status_aceite corretamente
+                $this->inserirDivisoes($id, $divisoes);
                 $this->pdo->commit();
                 header("Location: /financeiro/public/index.php?mes={$mesReferencia}&sucesso=1");
                 exit;
@@ -384,8 +378,10 @@ class TransacaoController {
     public function deletar() {
         $id = $_GET['id'] ?? null;
         if ($id) {
+            $usuarioId = $_SESSION['usuario_id'] ?? 0;
             $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
-            $this->pdo->prepare("DELETE FROM transacoes WHERE id = ?")->execute([$id]);
+            $stmtDel = $this->pdo->prepare("DELETE FROM transacoes WHERE id = ? AND usuario_id = ?");
+            $stmtDel->execute([$id, $usuarioId]);
         }
         $redirect = '/financeiro/public/index.php?sucesso=1';
 

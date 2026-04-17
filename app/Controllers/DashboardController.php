@@ -25,7 +25,7 @@ class DashboardController {
         $partesData = explode('-', $mesReferencia);
         $nomeMesAno = $mesesBr[$partesData[1]] . ' de ' . $partesData[0];
 
-        $usuarioId = 1;
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
 
         $stmt = $this->pdo->prepare("SELECT saldo_inicial_mes FROM usuarios WHERE id = ?");
         $stmt->execute([$usuarioId]);
@@ -37,9 +37,11 @@ class DashboardController {
                         JOIN transacoes t ON dt.transacao_id = t.id
                         WHERE dt.pessoa_id IS NULL
                           AND t.tipo = 'entrada'
-                          AND t.mes_referencia = ?";
+                          AND t.mes_referencia = ?
+                          AND (dt.status_aceite IS NULL OR dt.status_aceite = 'aceito')
+                          AND t.usuario_id = ?";
         $stmtEntradas = $this->pdo->prepare($sqlEntradas);
-        $stmtEntradas->execute([$mesReferencia]);
+        $stmtEntradas->execute([$mesReferencia, $usuarioId]);
         $entradasReais = (float) ($stmtEntradas->fetch()['total'] ?? 0);
 
         $sqlReceber = "SELECT SUM(dt.valor_divisao) as total
@@ -47,9 +49,11 @@ class DashboardController {
                        JOIN transacoes t ON dt.transacao_id = t.id
                        WHERE dt.status_pago = 0
                          AND dt.pessoa_id IS NOT NULL
-                         AND t.mes_referencia = ?";
+                         AND t.mes_referencia = ?
+                         AND (dt.status_aceite IS NULL OR dt.status_aceite = 'aceito')
+                         AND t.usuario_id = ?";
         $stmtTotalReceber = $this->pdo->prepare($sqlReceber);
-        $stmtTotalReceber->execute([$mesReferencia]);
+        $stmtTotalReceber->execute([$mesReferencia, $usuarioId]);
         $aReceber = (float) ($stmtTotalReceber->fetch()['total'] ?? 0);
 
         $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total
@@ -57,9 +61,11 @@ class DashboardController {
                         JOIN transacoes t ON dt.transacao_id = t.id
                         WHERE dt.pessoa_id IS NULL
                           AND t.tipo = 'despesa'
-                          AND t.mes_referencia = ?";
+                          AND t.mes_referencia = ?
+                          AND (dt.status_aceite IS NULL OR dt.status_aceite = 'aceito')
+                          AND t.usuario_id = ?";
         $stmtMinhasDespesas = $this->pdo->prepare($sqlDespesas);
-        $stmtMinhasDespesas->execute([$mesReferencia]);
+        $stmtMinhasDespesas->execute([$mesReferencia, $usuarioId]);
         $minhasDespesas = (float) ($stmtMinhasDespesas->fetch()['total'] ?? 0);
 
         $sqlFixasAuto = "SELECT SUM(valor_estimado) as total
@@ -67,10 +73,10 @@ class DashboardController {
                          WHERE tipo_pagamento = 'automatico'
                            AND ativo = 1
                            AND descricao NOT IN (
-                               SELECT descricao FROM transacoes WHERE mes_referencia = ?
-                           )";
+                               SELECT descricao FROM transacoes WHERE mes_referencia = ? AND usuario_id = ?
+                           ) AND usuario_id = ?";
         $stmtFixas = $this->pdo->prepare($sqlFixasAuto);
-        $stmtFixas->execute([$mesReferencia]);
+        $stmtFixas->execute([$mesReferencia, $usuarioId, $usuarioId]);
         $fixasComprometidas = (float) ($stmtFixas->fetch()['total'] ?? 0);
 
         $sqlGraficoCategorias = "SELECT
@@ -82,6 +88,7 @@ class DashboardController {
                                  WHERE dt.pessoa_id IS NULL
                                    AND t.tipo = 'despesa'
                                    AND t.mes_referencia = ?
+                                   AND (dt.status_aceite IS NULL OR dt.status_aceite = 'aceito')
                                  GROUP BY COALESCE(c.nome, 'Sem categoria')
                                  ORDER BY total DESC, categoria_nome ASC";
         $stmtGraficoCategorias = $this->pdo->prepare($sqlGraficoCategorias);
@@ -112,73 +119,22 @@ class DashboardController {
         }
 
         // carregar categorias e pessoas para o filtro
-        $stmtCat = $this->pdo->prepare("SELECT id, nome FROM categorias ORDER BY nome ASC");
-        $stmtCat->execute();
+        $stmtCat = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCat->execute([$usuarioId]);
         $categorias = $stmtCat->fetchAll();
 
-        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas ORDER BY nome ASC");
-        $stmtPessoas->execute();
+        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtPessoas->execute([$usuarioId]);
         $pessoas = $stmtPessoas->fetchAll();
 
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
-        $sqlLancamentos = "
-            SELECT DISTINCT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT STRING_AGG(p.nome, ', ')
-             FROM divisoes_transacao dt2
-             JOIN pessoas p ON dt2.pessoa_id = p.id
-             WHERE dt2.transacao_id = t.id) as amigos_nomes
-            FROM transacoes t
-            LEFT JOIN divisoes_transacao dt ON t.id = dt.transacao_id
-            LEFT JOIN categorias c ON t.categoria_id = c.id
-            LEFT JOIN cartoes cr ON t.cartao_id = cr.id
-            WHERE t.mes_referencia = :mes";
-
-        $params = [':mes' => $mesReferencia];
-
-        if ($busca !== '') {
-            $sqlLancamentos .= " AND (
-                t.descricao ILIKE :b1
-                OR REPLACE(t.valor_total::TEXT, '.', ',') ILIKE :b1
-                OR t.valor_total::TEXT ILIKE :b1
-                OR c.nome ILIKE :b2
-                OR cr.nome ILIKE :b3
-                OR EXISTS (
-                    SELECT 1 FROM divisoes_transacao dt3
-                    JOIN pessoas p2 ON dt3.pessoa_id = p2.id
-                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
-                )
-            )";
-
-            $termoBusca = '%' . $busca . '%';
-            $params[':b1'] = $termoBusca;
-            $params[':b2'] = $termoBusca;
-            $params[':b3'] = $termoBusca;
-            $params[':b4'] = $termoBusca;
-        }
-
-        // aplicar filtro por categoria se informado
-        if (isset($_GET['categoria_id']) && $_GET['categoria_id'] !== '') {
-            $sqlLancamentos .= " AND t.categoria_id = :categoria_id";
-            $params[':categoria_id'] = (int) $_GET['categoria_id'];
-        }
-
-        // aplicar filtro por pessoa (mine -> minhas divisões / vazio -> todos / id numérico -> amigo específico)
-        if (isset($_GET['pessoa_id']) && $_GET['pessoa_id'] !== '') {
-            $p = $_GET['pessoa_id'];
-            if ($p === 'mine' || $p === '0') {
-                $sqlLancamentos .= " AND dt.pessoa_id IS NULL";
-            } elseif (is_numeric($p)) {
-                $sqlLancamentos .= " AND dt.pessoa_id = :pessoa_id";
-                $params[':pessoa_id'] = (int) $p;
-            }
-        }
-
-        $sqlLancamentos .= " ORDER BY t.data_movimentacao DESC";
-
-        $stmtLista = $this->pdo->prepare($sqlLancamentos);
-        $stmtLista->execute($params);
-        $transacoes = $stmtLista->fetchAll();
+        // Listagem de lançamentos via model para respeitar Shared Ledger
+        require_once __DIR__ . '/../../config/database.php';
+        require_once __DIR__ . '/../Models/Transacao.php';
+        $model = new Transacao($this->pdo);
+        $pessoaFilter = isset($_GET['pessoa_id']) && is_numeric($_GET['pessoa_id']) ? $_GET['pessoa_id'] : null;
+        $transacoes = $model->buscarPorMes($usuarioId, $mesReferencia, $busca, $pessoaFilter);
 
         // detectar requisição AJAX
         $isAjax = (isset($_GET['ajax']) && $_GET['ajax'] === '1') || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');

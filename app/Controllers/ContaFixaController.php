@@ -99,10 +99,11 @@ class ContaFixaController {
             $dataMovimentacao = date('Y-m-') . str_pad($conta['dia_vencimento'], 2, '0', STR_PAD_LEFT);
             
             // 1. Insere a transação principal
-            $sqlT = "INSERT INTO transacoes (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id) 
-                     VALUES (?, ?, 'despesa', ?, ?, ?, ?)";
+            $sqlT = "INSERT INTO transacoes (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id) 
+                     VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?)";
             $stmtT = $this->pdo->prepare($sqlT);
             $stmtT->execute([
+                1, // TODO: usar sessão do usuário autenticado
                 $conta['descricao'], 
                 $conta['valor_estimado'], 
                 $dataMovimentacao, 
@@ -115,7 +116,7 @@ class ContaFixaController {
 
             // 2. Registra a sua parte (Magal/Levy) na tabela de divisões
             // pessoa_id = NULL significa que a conta é sua
-            $this->pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, NULL, ?, 1)")
+            $this->pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago, status_aceite) VALUES (?, NULL, ?, 1, 'aceito')")
                       ->execute([$transacaoId, $conta['valor_estimado']]);
 
             $this->pdo->commit();

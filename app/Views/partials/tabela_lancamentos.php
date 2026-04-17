@@ -9,7 +9,7 @@ if (empty($transacoes)): ?>
         <tr class="hover:bg-slate-50/80 transition-colors">
             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?= date('d/m/Y', strtotime($tr['data_movimentacao'])) ?></td>
             <td class="px-6 py-4">
-                <div class="text-sm font-bold text-slate-900"><?= htmlspecialchars($tr['descricao']) ?></div>
+                <div class="text-sm font-bold text-slate-900"><?= htmlspecialchars($tr['display_descricao'] ?? $tr['descricao']) ?></div>
                 <div class="flex flex-wrap gap-2 mt-1">
                     <?php if($tr['categoria_nome']): ?>
                         <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase font-bold border border-slate-200"><?= htmlspecialchars($tr['categoria_nome']) ?></span>
@@ -23,9 +23,9 @@ if (empty($transacoes)): ?>
                 </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider <?= $tr['tipo'] === 'despesa' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700' ?>"><?= $tr['tipo'] === 'despesa' ? 'Saída' : 'Entrada' ?></span>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider <?= ($tr['display_tipo'] ?? $tr['tipo']) === 'despesa' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700' ?>"><?= ($tr['display_tipo'] ?? $tr['tipo']) === 'despesa' ? 'Saída' : 'Entrada' ?></span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-black <?= $tr['tipo'] === 'despesa' ? 'text-rose-600' : 'text-emerald-600' ?>"><?= $tr['tipo'] === 'despesa' ? '-' : '+' ?> R$ <?= number_format($tr['valor_total'], 2, ',', '.') ?></td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-black <?= ($tr['display_tipo'] ?? $tr['tipo']) === 'despesa' ? 'text-rose-600' : 'text-emerald-600' ?>"><?= ($tr['display_tipo'] ?? $tr['tipo']) === 'despesa' ? '-' : '+' ?> R$ <?= number_format(($tr['display_valor'] ?? $tr['valor_total']), 2, ',', '.') ?></td>
             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                 <a href="/financeiro/public/index.php/editar-transacao?id=<?= $tr['id'] ?>" class="text-indigo-400 hover:text-indigo-700 transition-colors inline-block" title="Editar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>

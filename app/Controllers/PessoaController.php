@@ -10,7 +10,9 @@ class PessoaController {
 
     // 1. Lista todos os amigos
     public function index() {
-        $stmt = $this->pdo->query("SELECT * FROM pessoas ORDER BY nome ASC");
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $stmt = $this->pdo->prepare("SELECT p.*, u.email as usuario_email, u.nome as usuario_nome FROM pessoas p LEFT JOIN usuarios u ON p.vinculo_usuario_id = u.id WHERE p.usuario_id = ? ORDER BY p.nome ASC");
+        $stmt->execute([$usuarioId]);
         $pessoas = $stmt->fetchAll();
         
         require_once '../app/Views/pessoas.php';
@@ -20,10 +22,20 @@ class PessoaController {
     public function salvar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nome = trim($_POST['nome']);
+            $usuarioEmail = isset($_POST['usuario_email']) ? trim($_POST['usuario_email']) : '';
+            $vinculoId = null;
+
+            if ($usuarioEmail !== '') {
+                $stmtU = $this->pdo->prepare("SELECT id FROM usuarios WHERE email = ? LIMIT 1");
+                $stmtU->execute([$usuarioEmail]);
+                $u = $stmtU->fetch();
+                if ($u) $vinculoId = $u['id'];
+            }
             
             if (!empty($nome)) {
-                $stmt = $this->pdo->prepare("INSERT INTO pessoas (nome) VALUES (?)");
-                $stmt->execute([$nome]);
+                $usuarioId = $_SESSION['usuario_id'] ?? 0;
+                $stmt = $this->pdo->prepare("INSERT INTO pessoas (nome, vinculo_usuario_id, usuario_id) VALUES (?, ?, ?)");
+                $stmt->execute([$nome, $vinculoId, $usuarioId]);
             }
             
             header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
@@ -39,8 +51,9 @@ class PessoaController {
             exit;
         }
 
-        $stmt = $this->pdo->prepare("SELECT * FROM pessoas WHERE id = ?");
-        $stmt->execute([$id]);
+        $usuarioId = $_SESSION['usuario_id'] ?? 0;
+        $stmt = $this->pdo->prepare("SELECT * FROM pessoas WHERE id = ? AND usuario_id = ?");
+        $stmt->execute([$id, $usuarioId]);
         $pessoa = $stmt->fetch();
 
         if (!$pessoa) {
@@ -56,10 +69,20 @@ class PessoaController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = $_POST['id'];
             $nome = trim($_POST['nome']);
+            $usuarioEmail = isset($_POST['usuario_email']) ? trim($_POST['usuario_email']) : '';
+            $vinculoId = null;
+
+            if ($usuarioEmail !== '') {
+                $stmtU = $this->pdo->prepare("SELECT id FROM usuarios WHERE email = ? LIMIT 1");
+                $stmtU->execute([$usuarioEmail]);
+                $u = $stmtU->fetch();
+                if ($u) $vinculoId = $u['id'];
+            }
 
             if (!empty($id) && !empty($nome)) {
-                $stmt = $this->pdo->prepare("UPDATE pessoas SET nome = ? WHERE id = ?");
-                $stmt->execute([$nome, $id]);
+                $usuarioId = $_SESSION['usuario_id'] ?? 0;
+                $stmt = $this->pdo->prepare("UPDATE pessoas SET nome = ?, vinculo_usuario_id = ? WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$nome, $vinculoId, $id, $usuarioId]);
             }
 
             header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
@@ -73,9 +96,10 @@ class PessoaController {
         
         if ($id) {
             try {
-                // Tenta deletar a pessoa
-                $stmt = $this->pdo->prepare("DELETE FROM pessoas WHERE id = ?");
-                $stmt->execute([$id]);
+                // Tenta deletar a pessoa para o usuário atual
+                $usuarioId = $_SESSION['usuario_id'] ?? 0;
+                $stmt = $this->pdo->prepare("DELETE FROM pessoas WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$id, $usuarioId]);
                 header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
             } catch (PDOException $e) {
                 // Se cair aqui, é porque ela tem transações vinculadas no banco
