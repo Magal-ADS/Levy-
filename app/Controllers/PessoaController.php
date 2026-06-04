@@ -26,7 +26,7 @@ class PessoaController {
                 $stmt->execute([$nome]);
             }
             
-            header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
+            header('Location: ' . app_url('pessoas') . '?sucesso=1');
             exit;
         }
     }
@@ -35,7 +35,7 @@ class PessoaController {
     public function editar() {
         $id = $_GET['id'] ?? null;
         if (!$id) {
-            header('Location: /financeiro/public/index.php/pessoas');
+            header('Location: ' . app_url('pessoas'));
             exit;
         }
 
@@ -44,7 +44,7 @@ class PessoaController {
         $pessoa = $stmt->fetch();
 
         if (!$pessoa) {
-            header('Location: /financeiro/public/index.php/pessoas');
+            header('Location: ' . app_url('pessoas'));
             exit;
         }
 
@@ -62,7 +62,7 @@ class PessoaController {
                 $stmt->execute([$nome, $id]);
             }
 
-            header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
+            header('Location: ' . app_url('pessoas') . '?sucesso=1');
             exit;
         }
     }
@@ -76,11 +76,11 @@ class PessoaController {
                 // Tenta deletar a pessoa
                 $stmt = $this->pdo->prepare("DELETE FROM pessoas WHERE id = ?");
                 $stmt->execute([$id]);
-                header('Location: /financeiro/public/index.php/pessoas?sucesso=1');
+                header('Location: ' . app_url('pessoas') . '?sucesso=1');
             } catch (PDOException $e) {
                 // Se cair aqui, é porque ela tem transações vinculadas no banco
                 // Enviamos um erro via URL para você tratar na View
-                header('Location: /financeiro/public/index.php/pessoas?erro=vinculo');
+                header('Location: ' . app_url('pessoas') . '?erro=vinculo');
             }
             exit;
         }

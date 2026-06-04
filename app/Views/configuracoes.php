@@ -20,7 +20,7 @@
                 <p class="mt-1 text-sm text-slate-500">Essas informações servem de base para a leitura da sua saúde financeira no sistema.</p>
             </div>
 
-            <form action="/financeiro/public/index.php/salvar-configuracoes" method="POST">
+            <form action="<?= htmlspecialchars(app_url('salvar-configuracoes')) ?>" method="POST">
                 <input type="hidden" name="mes" value="<?= htmlspecialchars($mesSelecionado) ?>">
 
                 <div class="grid grid-cols-1 gap-5">
@@ -56,7 +56,7 @@
                     <p class="mt-1 text-sm text-slate-500">Veja o impacto de cada categoria sobre o seu salário base de R$ <?= number_format($salarioBase, 2, ',', '.') ?>.</p>
                 </div>
 
-                <form method="GET" action="/financeiro/public/index.php/configuracoes" class="w-full md:w-auto">
+                <form method="GET" action="<?= htmlspecialchars(app_url('configuracoes')) ?>" class="w-full md:w-auto">
                     <label class="mb-1.5 block text-sm font-medium text-slate-700">Mês de referência</label>
                     <input type="month" name="mes" value="<?= htmlspecialchars($mesSelecionado) ?>" onchange="this.form.submit()" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 md:w-52">
                 </form>

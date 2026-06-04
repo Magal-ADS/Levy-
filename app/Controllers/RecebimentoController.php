@@ -77,7 +77,7 @@ class RecebimentoController {
         $mesReferencia = $mes ?? ($_GET['mes'] ?? date('Y-m'));
 
         if (!$pessoaId || !preg_match('/^\d+$/', (string) $pessoaId)) {
-            header('Location: /financeiro/public/index.php/recebimentos?erro=relatorio');
+            header('Location: ' . app_url('recebimentos') . '?erro=relatorio');
             exit;
         }
 
@@ -87,7 +87,7 @@ class RecebimentoController {
 
         $dadosRelatorio = $this->buscarRelatorioPessoa((int) $pessoaId, $mesReferencia);
         if (!$dadosRelatorio['pessoa']) {
-            header('Location: /financeiro/public/index.php/recebimentos?mes=' . urlencode($mesReferencia) . '&erro=relatorio');
+            header('Location: ' . app_url('recebimentos') . '?mes=' . urlencode($mesReferencia) . '&erro=relatorio');
             exit;
         }
 
@@ -143,7 +143,7 @@ class RecebimentoController {
             }
         }
 
-        header("Location: /financeiro/public/index.php/recebimentos?mes={$mes}&sucesso=1");
+        header('Location: ' . app_url('recebimentos') . "?mes={$mes}&sucesso=1");
         exit;
     }
 

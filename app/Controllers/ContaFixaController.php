@@ -65,7 +65,7 @@ class ContaFixaController {
                 $_POST['tipo_pagamento']
             ]);
 
-            header('Location: /financeiro/public/index.php/contas-fixas?sucesso=1');
+            header('Location: ' . app_url('contas-fixas') . '?sucesso=1');
             exit;
         }
     }
@@ -76,7 +76,7 @@ class ContaFixaController {
     public function pagar() {
         $id = $_GET['id'] ?? null;
         if (!$id) {
-            header('Location: /financeiro/public/index.php/contas-fixas');
+            header('Location: ' . app_url('contas-fixas'));
             exit;
         }
 
@@ -88,7 +88,7 @@ class ContaFixaController {
         $conta = $stmt->fetch();
 
         if (!$conta) {
-            header('Location: /financeiro/public/index.php/contas-fixas');
+            header('Location: ' . app_url('contas-fixas'));
             exit;
         }
 
@@ -119,7 +119,7 @@ class ContaFixaController {
                       ->execute([$transacaoId, $conta['valor_estimado']]);
 
             $this->pdo->commit();
-            header("Location: /financeiro/public/index.php/contas-fixas?sucesso=1");
+            header('Location: ' . app_url('contas-fixas') . '?sucesso=1');
             exit;
         } catch (Exception $e) {
             if ($this->pdo->inTransaction()) {
@@ -138,7 +138,7 @@ class ContaFixaController {
             // Apenas desativamos para manter a integridade de lançamentos antigos
             $this->pdo->prepare("UPDATE contas_fixas SET ativo = 0 WHERE id = ?")->execute([$id]);
         }
-        header('Location: /financeiro/public/index.php/contas-fixas?sucesso=1');
+        header('Location: ' . app_url('contas-fixas') . '?sucesso=1');
         exit;
     }
 }

@@ -18,7 +18,7 @@ class CartaoController {
             $stmt = $this->pdo->prepare("INSERT INTO cartoes (nome) VALUES (?)");
             $stmt->execute([trim($_POST['nome'])]);
         }
-        header('Location: /financeiro/public/index.php/cartoes?sucesso=1');
+        header('Location: ' . app_url('cartoes') . '?sucesso=1');
         exit;
     }
 
@@ -29,10 +29,10 @@ class CartaoController {
             try {
                 $stmt = $this->pdo->prepare("DELETE FROM cartoes WHERE id = ?");
                 $stmt->execute([$id]);
-                header('Location: /financeiro/public/index.php/cartoes?sucesso=1');
+                header('Location: ' . app_url('cartoes') . '?sucesso=1');
             } catch (Exception $e) {
                 // Se der erro de vínculo (cartão sendo usado em alguma conta), avisa na URL
-                header('Location: /financeiro/public/index.php/cartoes?erro=vinculo');
+                header('Location: ' . app_url('cartoes') . '?erro=vinculo');
             }
             exit;
         }

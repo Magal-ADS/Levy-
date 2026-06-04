@@ -1,0 +1,42 @@
+name: levy
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: levy-app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8083:80"
+    environment:
+      APP_BASE_PATH: ""
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: levy
+      DB_USER: postgres
+      DB_PASS: postgres
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: levy-db
+    environment:
+      POSTGRES_DB: levy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - levy_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d levy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  levy_postgres_data:

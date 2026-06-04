@@ -17,7 +17,7 @@
         </div>
         
         <div class="flex flex-wrap gap-3 items-center w-full md:w-auto">
-            <a href="/financeiro/public/index.php/nova-conta" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2">
+            <a href="<?= htmlspecialchars(app_url('nova-conta')) ?>" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                  Nova Transação
             </a>
@@ -25,7 +25,7 @@
             <form method="GET" class="m-0 flex gap-2">
                 <input type="month" name="mes" value="<?= $mesReferencia ?>" class="border-gray-300 rounded-md shadow-sm p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="this.form.submit()">
                 
-                <a href="/financeiro/public/index.php" title="Voltar para o mês atual" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-md border border-slate-300 transition-colors">
+                <a href="<?= htmlspecialchars(app_url()) ?>" title="Voltar para o mês atual" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-md border border-slate-300 transition-colors">
                     <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                 </a>
             </form>
@@ -202,10 +202,10 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-black <?= $tr['tipo'] === 'despesa' ? 'text-rose-600' : 'text-emerald-600' ?>"><?= $tr['tipo'] === 'despesa' ? '-' : '+' ?> R$ <?= number_format($tr['valor_total'], 2, ',', '.') ?></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                                    <a href="/financeiro/public/index.php/editar-transacao?id=<?= $tr['id'] ?>" class="text-indigo-400 hover:text-indigo-700 transition-colors inline-block" title="Editar">
+                                    <a href="<?= htmlspecialchars(app_url('editar-transacao')) ?>?id=<?= $tr['id'] ?>" class="text-indigo-400 hover:text-indigo-700 transition-colors inline-block" title="Editar">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                     </a>
-                                    <a href="/financeiro/public/index.php/deletar-transacao?id=<?= $tr['id'] ?>" onclick="return confirm('Deseja realmente apagar esta conta? As dívidas dos amigos vinculados também serão removidas.')" class="text-rose-400 hover:text-rose-700 transition-colors inline-block" title="Excluir">
+                                    <a href="<?= htmlspecialchars(app_url('deletar-transacao')) ?>?id=<?= $tr['id'] ?>" onclick="return confirm('Deseja realmente apagar esta conta? As dívidas dos amigos vinculados também serão removidas.')" class="text-rose-400 hover:text-rose-700 transition-colors inline-block" title="Excluir">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </a>
                                 </td>
@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function(){
         params.set('ajax', '1');
 
         try {
-            const res = await fetch('/financeiro/public/index.php?' + params.toString(), {
+            const res = await fetch('<?= htmlspecialchars(app_url()) ?>?' + params.toString(), {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
                 }

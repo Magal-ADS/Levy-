@@ -289,7 +289,7 @@ class TransacaoController {
                 }
 
                 $this->pdo->commit();
-                header("Location: /financeiro/public/index.php?mes={$mesReferencia}&sucesso=1");
+                header('Location: ' . app_url() . "?mes={$mesReferencia}&sucesso=1");
                 exit;
             } catch (Exception $e) {
                 if ($this->pdo->inTransaction()) {
@@ -304,7 +304,7 @@ class TransacaoController {
 
     public function editar() {
         $id = $_GET['id'] ?? null;
-        if (!$id) { header('Location: /financeiro/public/index.php'); exit; }
+        if (!$id) { header('Location: ' . app_url()); exit; }
 
         $stmt = $this->pdo->prepare("SELECT * FROM transacoes WHERE id = ?");
         $stmt->execute([$id]);
@@ -370,7 +370,7 @@ class TransacaoController {
                     ]);
                 }
                 $this->pdo->commit();
-                header("Location: /financeiro/public/index.php?mes={$mesReferencia}&sucesso=1");
+                header('Location: ' . app_url() . "?mes={$mesReferencia}&sucesso=1");
                 exit;
             } catch (Exception $e) {
                 $this->pdo->rollBack();
@@ -387,13 +387,13 @@ class TransacaoController {
             $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
             $this->pdo->prepare("DELETE FROM transacoes WHERE id = ?")->execute([$id]);
         }
-        $redirect = '/financeiro/public/index.php?sucesso=1';
+        $redirect = app_url() . '?sucesso=1';
 
         if (!empty($_SERVER['HTTP_REFERER'])) {
             $path = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH) ?? '';
             $query = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_QUERY) ?? '';
 
-            if (str_starts_with($path, '/financeiro/public/index.php')) {
+            if (str_starts_with($path, app_index_path())) {
                 $redirect = $path . ($query !== '' ? '?' . $query : '');
             }
         }

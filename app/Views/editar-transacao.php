@@ -3,11 +3,11 @@
 <div class="max-w-3xl mx-auto">
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-slate-800">Editar Transação #<?= $transacao['id'] ?></h2>
-        <a href="/financeiro/public/index.php" class="text-sm text-slate-500 hover:text-slate-700 underline">Voltar</a>
+        <a href="<?= htmlspecialchars(app_url()) ?>" class="text-sm text-slate-500 hover:text-slate-700 underline">Voltar</a>
     </div>
 
     <div class="bg-white rounded-lg shadow overflow-hidden">
-        <form action="/financeiro/public/index.php/atualizar-transacao" method="POST" class="p-6 md:p-8">
+        <form action="<?= htmlspecialchars(app_url('atualizar-transacao')) ?>" method="POST" class="p-6 md:p-8">
             <input type="hidden" name="id" value="<?= $transacao['id'] ?>">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

@@ -6,7 +6,7 @@
     </div>
 
     <div class="bg-white rounded-lg shadow overflow-hidden">
-        <form action="/financeiro/public/index.php/salvar-transacao" method="POST" class="p-6 md:p-8" id="form-transacao">
+        <form action="<?= htmlspecialchars(app_url('salvar-transacao')) ?>" method="POST" class="p-6 md:p-8" id="form-transacao">
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="col-span-1 md:col-span-2">

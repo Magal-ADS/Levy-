@@ -6,7 +6,7 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white rounded-lg shadow p-6 border-t-4 border-indigo-500">
             <h3 class="font-bold text-slate-700 mb-4 text-lg">Novo Cartão</h3>
-            <form action="/financeiro/public/index.php/cartoes" method="POST">
+            <form action="<?= htmlspecialchars(app_url('cartoes')) ?>" method="POST">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-slate-600 mb-1">Nome do Cartão</label>
                     <input type="text" name="nome" required placeholder="Ex: Nubank, Inter, Itaú" 

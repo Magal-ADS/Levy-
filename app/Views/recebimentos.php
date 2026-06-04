@@ -20,7 +20,7 @@ function getCorAmigo($nome) {
         </div>
         
         <div class="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-            <form method="GET" action="/financeiro/public/index.php/recebimentos" class="w-full sm:w-auto">
+            <form method="GET" action="<?= htmlspecialchars(app_url('recebimentos')) ?>" class="w-full sm:w-auto">
                 <input type="month" name="mes" value="<?= htmlspecialchars($mesReferencia) ?>" class="w-full sm:w-auto border-slate-200 rounded-lg text-sm text-slate-600 focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2 cursor-pointer shadow-sm" onchange="this.form.submit()">
             </form>
 
@@ -107,10 +107,10 @@ function getCorAmigo($nome) {
                         
                         <div class="flex items-center gap-3 w-full md:w-auto justify-end">
                             <span class="text-lg font-black text-rose-500 mr-2">R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?></span>
-                            <a href="/financeiro/public/index.php/relatorio-pessoa?pessoa_id=<?= $pId ?>&mes=<?= urlencode($mesReferencia) ?>" onclick="event.stopPropagation()" target="_blank" class="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100" title="Gerar relatório em PDF">
+                            <a href="<?= htmlspecialchars(app_url('relatorio-pessoa')) ?>?pessoa_id=<?= $pId ?>&mes=<?= urlencode($mesReferencia) ?>" onclick="event.stopPropagation()" target="_blank" class="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100" title="Gerar relatório em PDF">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M7 4h7l5 5v9a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
                             </a>
-                            <a href="/financeiro/public/index.php/baixar-recebimento?pessoa_id=<?= $pId ?>&mes=<?= $mesReferencia ?>" onclick="event.stopPropagation(); return confirm('Deseja dar baixa no valor TOTAL de R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?> de <?= htmlspecialchars($pessoa['nome']) ?> referente a este mês?');" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1">
+                            <a href="<?= htmlspecialchars(app_url('baixar-recebimento')) ?>?pessoa_id=<?= $pId ?>&mes=<?= $mesReferencia ?>" onclick="event.stopPropagation(); return confirm('Deseja dar baixa no valor TOTAL de R$ <?= number_format($pessoa['total_devido'], 2, ',', '.') ?> de <?= htmlspecialchars($pessoa['nome']) ?> referente a este mês?');" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 Quitar Tudo
                             </a>
@@ -138,7 +138,7 @@ function getCorAmigo($nome) {
                                         <td class="px-6 py-4 font-bold text-slate-700"><?= htmlspecialchars($item['descricao']) ?></td>
                                         <td class="px-6 py-4 text-right font-black text-slate-600">R$ <?= number_format($item['valor_divisao'], 2, ',', '.') ?></td>
                                         <td class="px-6 py-4 text-center">
-                                            <a href="/financeiro/public/index.php/baixar-recebimento?id=<?= $item['divisao_id'] ?>&mes=<?= $mesReferencia ?>" onclick="return confirm('Confirmar o recebimento deste valor?')" class="inline-block bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm">
+                                            <a href="<?= htmlspecialchars(app_url('baixar-recebimento')) ?>?id=<?= $item['divisao_id'] ?>&mes=<?= $mesReferencia ?>" onclick="return confirm('Confirmar o recebimento deste valor?')" class="inline-block bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm">
                                                 Confirmar Pagamento
                                             </a>
                                         </td>

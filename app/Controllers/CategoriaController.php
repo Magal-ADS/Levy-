@@ -19,12 +19,12 @@ class CategoriaController {
             $tipo = trim($_POST['tipo'] ?? '');
 
             if ($nome === '') {
-                header('Location: /financeiro/public/index.php/categorias?erro=nome');
+                header('Location: ' . app_url('categorias') . '?erro=nome');
                 exit;
             }
 
             if (!in_array($tipo, ['receita', 'despesa'], true)) {
-                header('Location: /financeiro/public/index.php/categorias?erro=tipo');
+                header('Location: ' . app_url('categorias') . '?erro=tipo');
                 exit;
             }
 
@@ -32,7 +32,7 @@ class CategoriaController {
             $stmt->execute([$nome, $tipo]);
         }
 
-        header('Location: /financeiro/public/index.php/categorias?sucesso=criada');
+        header('Location: ' . app_url('categorias') . '?sucesso=criada');
         exit;
     }
 
@@ -43,17 +43,17 @@ class CategoriaController {
             $tipo = trim($_POST['tipo'] ?? '');
 
             if (!$id || !preg_match('/^\d+$/', (string) $id)) {
-                header('Location: /financeiro/public/index.php/categorias?erro=id');
+                header('Location: ' . app_url('categorias') . '?erro=id');
                 exit;
             }
 
             if ($nome === '') {
-                header('Location: /financeiro/public/index.php/categorias?erro=nome');
+                header('Location: ' . app_url('categorias') . '?erro=nome');
                 exit;
             }
 
             if (!in_array($tipo, ['receita', 'despesa'], true)) {
-                header('Location: /financeiro/public/index.php/categorias?erro=tipo');
+                header('Location: ' . app_url('categorias') . '?erro=tipo');
                 exit;
             }
 
@@ -61,7 +61,7 @@ class CategoriaController {
             $stmt->execute([$nome, $tipo, $id]);
         }
 
-        header('Location: /financeiro/public/index.php/categorias?sucesso=atualizada');
+        header('Location: ' . app_url('categorias') . '?sucesso=atualizada');
         exit;
     }
 
@@ -71,9 +71,9 @@ class CategoriaController {
             try {
                 $stmt = $this->pdo->prepare("DELETE FROM categorias WHERE id = ?");
                 $stmt->execute([$id]);
-                header('Location: /financeiro/public/index.php/categorias?sucesso=deletada');
+                header('Location: ' . app_url('categorias') . '?sucesso=deletada');
             } catch (Exception $e) {
-                header('Location: /financeiro/public/index.php/categorias?erro=vinculo');
+                header('Location: ' . app_url('categorias') . '?erro=vinculo');
             }
             exit;
         }

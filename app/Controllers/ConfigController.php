@@ -74,7 +74,7 @@ class ConfigController {
             $stmt = $this->pdo->prepare("UPDATE usuarios SET nome = ?, salario_base = ?, saldo_inicial_mes = ? WHERE id = 1");
             $stmt->execute([$nome, $salario, $saldoInicial]);
 
-            header('Location: /financeiro/public/index.php/configuracoes?sucesso=1&mes=' . urlencode($mesSelecionado));
+            header('Location: ' . app_url('configuracoes') . '?sucesso=1&mes=' . urlencode($mesSelecionado));
             exit;
         }
     }
