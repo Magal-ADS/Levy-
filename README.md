@@ -66,6 +66,38 @@ docker compose exec app php migrate.php
 docker compose exec app php seed.php
 ```
 
+## Importar CSV do banco antigo
+
+Coloque os arquivos CSV na raiz do projeto ou em uma pasta separada. Os nomes devem seguir as tabelas do banco:
+
+```text
+usuarios.csv
+pessoas.csv
+cartoes.csv
+categorias.csv
+transacoes.csv
+divisoes_transacao.csv
+contas_fixas.csv
+```
+
+Para importar preservando os IDs:
+
+```bash
+docker compose exec app php import_csv_seed.php --truncate
+```
+
+Se os CSVs estiverem em outra pasta:
+
+```bash
+docker compose exec app php import_csv_seed.php --dir=./csv --truncate
+```
+
+Observacoes:
+
+- O script detecta automaticamente delimitador `;`, `,`, `tab` ou `|`.
+- O CSV precisa ter cabecalho com os nomes exatos das colunas.
+- O `--truncate` limpa as tabelas antes da carga.
+
 ## Ver logs
 
 ```bash
@@ -116,6 +148,43 @@ docker compose exec app bash
 ```bash
 docker compose exec db psql -U postgres -d levy
 ```
+
+## Restaurar um backup em outro computador
+
+O backup SQL inclui a estrutura e os dados do banco. No outro notebook, copie o
+arquivo `.sql` para a raiz deste projeto e suba o Docker normalmente:
+
+```bash
+docker compose up -d
+```
+
+Os comandos abaixo **apagam e recriam** o banco `levy` antes da restauracao.
+Pare a aplicacao para que ela nao mantenha conexoes abertas e copie o arquivo
+para o container do PostgreSQL:
+
+```bash
+docker compose stop app
+docker compose cp backup_levy_2026-08-02_15-27-43.sql db:/tmp/backup_levy.sql
+```
+
+Em seguida, recrie o banco e importe o arquivo:
+
+```bash
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS levy WITH (FORCE);"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE levy;"
+docker compose exec -T db psql -U postgres -d levy -f /tmp/backup_levy.sql
+docker compose start app
+```
+
+Para confirmar que a restauracao terminou corretamente:
+
+```bash
+docker compose exec db psql -U postgres -d levy -c "\\dt"
+```
+
+> Troque `backup_levy_2026-08-02_15-27-43.sql` pelo nome do arquivo que voce
+> quiser restaurar. A limpeza do banco e irreversivel; use esses comandos
+> apenas quando quiser substituir todos os dados do `levy` no notebook destino.
 
 ## Observacoes
 
