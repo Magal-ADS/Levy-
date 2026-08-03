@@ -1,3 +1,4 @@
+<?php $loadChartJs = true; ?>
 <?php require_once __DIR__ . '/partials/header.php'; ?>
 
 <div class="max-w-7xl mx-auto w-full">
@@ -72,8 +73,8 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
     <?php if(!empty($dadosGrafico)): ?>
     const ctx = document.getElementById('meuGrafico').getContext('2d');
     const dados = <?= json_encode($dadosGrafico) ?>;
@@ -101,6 +102,7 @@
         }
     });
     <?php endif; ?>
+});
 </script>
 
 <?php require_once __DIR__ . '/partials/footer.php'; ?>

@@ -11,7 +11,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5501/5501375.png">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/app.css')) ?>">
+    <?php if (!empty($loadChartJs)): ?>
+    <script src="<?= htmlspecialchars(asset_url('assets/chart.umd.min.js')) ?>" defer></script>
+    <?php endif; ?>
     
     <style>
         /* Ajuste para evitar o "pulo" visual no mobile antes do Tailwind carregar */

@@ -1,3 +1,5 @@
 .env
 *.csv
 backup_*.sql
+dist/
+node_modules/

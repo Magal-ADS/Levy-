@@ -125,6 +125,24 @@ foreach ($tabelas as $nome => $sql) {
     }
 }
 
+$indices = [
+    'idx_transacoes_mes_data' =>
+        'CREATE INDEX IF NOT EXISTS idx_transacoes_mes_data ON transacoes (mes_referencia, data_movimentacao DESC)',
+    'idx_divisoes_transacao_transacao' =>
+        'CREATE INDEX IF NOT EXISTS idx_divisoes_transacao_transacao ON divisoes_transacao (transacao_id)',
+    'idx_divisoes_transacao_pessoa_status' =>
+        'CREATE INDEX IF NOT EXISTS idx_divisoes_transacao_pessoa_status ON divisoes_transacao (pessoa_id, status_pago)'
+];
+
+foreach ($indices as $nome => $sql) {
+    try {
+        $pdo->exec($sql);
+        echo "[OK] Índice: $nome\n";
+    } catch (PDOException $e) {
+        echo "[ERRO] $nome: " . $e->getMessage() . "\n";
+    }
+}
+
 // ==========================================================
 // SEED - Dados Iniciais de Teste
 // ==========================================================

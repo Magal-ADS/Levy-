@@ -1,0 +1,11 @@
+{
+  "name": "levy-frontend",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p dist && tailwindcss -i ./assets/tailwind.css -o ./dist/app.css --minify && cp ./node_modules/chart.js/dist/chart.umd.min.js ./dist/chart.umd.min.js"
+  },
+  "devDependencies": {
+    "chart.js": "4.5.1",
+    "tailwindcss": "3.4.19"
+  }
+}

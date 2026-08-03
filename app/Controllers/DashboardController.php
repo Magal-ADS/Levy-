@@ -32,35 +32,26 @@ class DashboardController {
         $usuario = $stmt->fetch();
         $saldoInicial = (float) ($usuario['saldo_inicial_mes'] ?? 0);
 
-        $sqlEntradas = "SELECT SUM(dt.valor_divisao) as total
-                        FROM divisoes_transacao dt
-                        JOIN transacoes t ON dt.transacao_id = t.id
-                        WHERE dt.pessoa_id IS NULL
-                          AND t.tipo = 'entrada'
-                          AND t.mes_referencia = ?";
-        $stmtEntradas = $this->pdo->prepare($sqlEntradas);
-        $stmtEntradas->execute([$mesReferencia]);
-        $entradasReais = (float) ($stmtEntradas->fetch()['total'] ?? 0);
+        $sqlResumo = "SELECT
+                          COALESCE(SUM(dt.valor_divisao) FILTER (
+                              WHERE dt.pessoa_id IS NULL AND t.tipo = 'receita'
+                          ), 0) AS entradas_reais,
+                          COALESCE(SUM(dt.valor_divisao) FILTER (
+                              WHERE dt.status_pago = 0 AND dt.pessoa_id IS NOT NULL
+                          ), 0) AS total_a_receber,
+                          COALESCE(SUM(dt.valor_divisao) FILTER (
+                              WHERE dt.pessoa_id IS NULL AND t.tipo = 'despesa'
+                          ), 0) AS minhas_despesas
+                      FROM transacoes t
+                      JOIN divisoes_transacao dt ON dt.transacao_id = t.id
+                      WHERE t.mes_referencia = ?";
+        $stmtResumo = $this->pdo->prepare($sqlResumo);
+        $stmtResumo->execute([$mesReferencia]);
+        $resumo = $stmtResumo->fetch();
 
-        $sqlReceber = "SELECT SUM(dt.valor_divisao) as total
-                       FROM divisoes_transacao dt
-                       JOIN transacoes t ON dt.transacao_id = t.id
-                       WHERE dt.status_pago = 0
-                         AND dt.pessoa_id IS NOT NULL
-                         AND t.mes_referencia = ?";
-        $stmtTotalReceber = $this->pdo->prepare($sqlReceber);
-        $stmtTotalReceber->execute([$mesReferencia]);
-        $aReceber = (float) ($stmtTotalReceber->fetch()['total'] ?? 0);
-
-        $sqlDespesas = "SELECT SUM(dt.valor_divisao) as total
-                        FROM divisoes_transacao dt
-                        JOIN transacoes t ON dt.transacao_id = t.id
-                        WHERE dt.pessoa_id IS NULL
-                          AND t.tipo = 'despesa'
-                          AND t.mes_referencia = ?";
-        $stmtMinhasDespesas = $this->pdo->prepare($sqlDespesas);
-        $stmtMinhasDespesas->execute([$mesReferencia]);
-        $minhasDespesas = (float) ($stmtMinhasDespesas->fetch()['total'] ?? 0);
+        $entradasReais = (float) ($resumo['entradas_reais'] ?? 0);
+        $aReceber = (float) ($resumo['total_a_receber'] ?? 0);
+        $minhasDespesas = (float) ($resumo['minhas_despesas'] ?? 0);
 
         $sqlFixasAuto = "SELECT SUM(valor_estimado) as total
                          FROM contas_fixas
@@ -123,15 +114,19 @@ class DashboardController {
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
 
         $sqlLancamentos = "
-            SELECT DISTINCT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
-            (SELECT STRING_AGG(p.nome, ', ')
-             FROM divisoes_transacao dt2
-             JOIN pessoas p ON dt2.pessoa_id = p.id
-             WHERE dt2.transacao_id = t.id) as amigos_nomes
+            SELECT t.*, c.nome as categoria_nome, cr.nome as cartao_nome,
+                   divisao_resumo.amigos_nomes
             FROM transacoes t
-            LEFT JOIN divisoes_transacao dt ON t.id = dt.transacao_id
             LEFT JOIN categorias c ON t.categoria_id = c.id
             LEFT JOIN cartoes cr ON t.cartao_id = cr.id
+            LEFT JOIN (
+                SELECT dt.transacao_id,
+                       STRING_AGG(p.nome, ', ' ORDER BY p.nome)
+                           FILTER (WHERE p.id IS NOT NULL) AS amigos_nomes
+                FROM divisoes_transacao dt
+                LEFT JOIN pessoas p ON dt.pessoa_id = p.id
+                GROUP BY dt.transacao_id
+            ) divisao_resumo ON divisao_resumo.transacao_id = t.id
             WHERE t.mes_referencia = :mes";
 
         $params = [':mes' => $mesReferencia];
@@ -143,11 +138,7 @@ class DashboardController {
                 OR t.valor_total::TEXT ILIKE :b1
                 OR c.nome ILIKE :b2
                 OR cr.nome ILIKE :b3
-                OR EXISTS (
-                    SELECT 1 FROM divisoes_transacao dt3
-                    JOIN pessoas p2 ON dt3.pessoa_id = p2.id
-                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
-                )
+                OR divisao_resumo.amigos_nomes ILIKE :b4
             )";
 
             $termoBusca = '%' . $busca . '%';
@@ -167,9 +158,17 @@ class DashboardController {
         if (isset($_GET['pessoa_id']) && $_GET['pessoa_id'] !== '') {
             $p = $_GET['pessoa_id'];
             if ($p === 'mine' || $p === '0') {
-                $sqlLancamentos .= " AND dt.pessoa_id IS NULL";
+                $sqlLancamentos .= " AND EXISTS (
+                    SELECT 1 FROM divisoes_transacao dt_filtro
+                    WHERE dt_filtro.transacao_id = t.id
+                      AND dt_filtro.pessoa_id IS NULL
+                )";
             } elseif (is_numeric($p)) {
-                $sqlLancamentos .= " AND dt.pessoa_id = :pessoa_id";
+                $sqlLancamentos .= " AND EXISTS (
+                    SELECT 1 FROM divisoes_transacao dt_filtro
+                    WHERE dt_filtro.transacao_id = t.id
+                      AND dt_filtro.pessoa_id = :pessoa_id
+                )";
                 $params[':pessoa_id'] = (int) $p;
             }
         }

@@ -1,6 +1,5 @@
-<?php $pageTitle = 'Dashboard'; ?>
+<?php $pageTitle = 'Dashboard'; $loadChartJs = true; ?>
 <?php require_once __DIR__ . '/partials/header.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <div class="max-w-7xl mx-auto w-full">
     <?php if (isset($_GET['sucesso'])): ?>
@@ -220,6 +219,7 @@
 
 <?php if (!empty($graficoCategoriasLabels)): ?>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
     const labelsGraficoCategorias = <?= json_encode($graficoCategoriasLabels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const valoresGraficoCategorias = <?= json_encode($graficoCategoriasValores, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const coresGraficoCategorias = <?= json_encode($graficoCategoriasCores, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
@@ -257,6 +257,7 @@
             }
         });
     }
+});
 </script>
 <?php endif; ?>
 
