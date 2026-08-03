@@ -53,7 +53,7 @@ try {
 // 3. LIMPANDO O SUPABASE
 // Isso apaga os dados "Seed" que o migrate criou para não duplicar IDs
 echo "🧹 Limpando dados iniciais do Supabase...\n";
-$pdoPgSql->exec("TRUNCATE TABLE usuarios, pessoas, cartoes, categorias, transacoes, divisoes_transacao, contas_fixas RESTART IDENTITY CASCADE");
+$pdoPgSql->exec("TRUNCATE TABLE tentativas_login, usuarios, pessoas, cartoes, categorias, transacoes, divisoes_transacao, contas_fixas RESTART IDENTITY CASCADE");
 
 // 4. TRANSFERINDO TABELA POR TABELA (Na ordem correta)
 $tabelas = ['usuarios', 'pessoas', 'cartoes', 'categorias', 'transacoes', 'divisoes_transacao', 'contas_fixas'];
@@ -64,6 +64,18 @@ foreach ($tabelas as $tabela) {
     $registros = $stmtMySql->fetchAll();
 
     if (count($registros) > 0) {
+        $tabelasComDono = ['pessoas', 'cartoes', 'categorias', 'transacoes', 'divisoes_transacao', 'contas_fixas'];
+        if (in_array($tabela, $tabelasComDono, true) && !array_key_exists('usuario_id', $registros[0])) {
+            $usuarioId = $pdoPgSql->query("SELECT id FROM usuarios ORDER BY id ASC LIMIT 1")->fetchColumn();
+            if (!$usuarioId) {
+                throw new RuntimeException('Nenhum usuario proprietario foi transferido antes dos dados financeiros.');
+            }
+            foreach ($registros as &$registro) {
+                $registro['usuario_id'] = (int) $usuarioId;
+            }
+            unset($registro);
+        }
+
         // Prepara o Insert pro Postgres
         $colunas = array_keys($registros[0]);
         $nomesColunas = implode(', ', $colunas);

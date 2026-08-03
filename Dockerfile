@@ -31,3 +31,5 @@ COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
+
+CMD ["sh", "-c", "php migrate.php && exec apache2-foreground"]

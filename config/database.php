@@ -18,7 +18,10 @@ foreach ($envPaths as $envFile) {
             if ($line === '' || $line[0] === '#') continue;
             if (strpos($line, '=') === false) continue;
             list($key, $value) = explode('=', $line, 2);
-            putenv(trim($key) . "=" . trim($value));
+            $key = trim($key);
+            if (getenv($key) === false) {
+                putenv($key . "=" . trim($value));
+            }
         }
         break; // Achou o .env, para de procurar
     }

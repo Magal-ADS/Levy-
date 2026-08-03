@@ -13,6 +13,7 @@ services:
       - "8083:80"
     environment:
       APP_BASE_PATH: ""
+      APP_DEBUG: "0"
       DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: levy
@@ -28,7 +29,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - levy_postgres_data:/var/lib/postgresql/data
     healthcheck:

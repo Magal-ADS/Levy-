@@ -209,6 +209,16 @@ function importarTabela(PDO $pdo, string $tabela, string $arquivoCsv): int
     }
 
     $colunasImportadas = array_column($mapeamentoColunas, 'coluna');
+    $usuarioIdPadrao = null;
+    $tabelasComDono = ['pessoas', 'cartoes', 'categorias', 'transacoes', 'divisoes_transacao', 'contas_fixas'];
+    if (in_array($tabela, $tabelasComDono, true) && !in_array('usuario_id', $colunasImportadas, true)) {
+        $usuarioIdPadrao = $pdo->query("SELECT id FROM usuarios ORDER BY id ASC LIMIT 1")->fetchColumn();
+        if (!$usuarioIdPadrao) {
+            fclose($handle);
+            throw new RuntimeException("O CSV legado de '$tabela' nao possui usuario_id e nenhum usuario proprietario foi importado.");
+        }
+        $colunasImportadas[] = 'usuario_id';
+    }
 
     $placeholders = implode(', ', array_fill(0, count($colunasImportadas), '?'));
     $colunasSql = implode(', ', array_map(static fn(string $coluna): string => '"' . $coluna . '"', $colunasImportadas));
@@ -228,6 +238,10 @@ function importarTabela(PDO $pdo, string $tabela, string $arquivoCsv): int
             $indice = $colunaMapeada['indice'];
             $coluna = $colunaMapeada['coluna'];
             $valores[] = normalizarValor($linha[$indice] ?? null, $colunasTabela[$coluna] ?? null);
+        }
+
+        if ($usuarioIdPadrao !== null) {
+            $valores[] = (int) $usuarioIdPadrao;
         }
 
         $stmt->execute($valores);
@@ -307,7 +321,7 @@ echo str_repeat('-', 60) . "\n";
 
 if ($options['truncate']) {
     echo "Limpando tabelas antes da importacao...\n";
-    $pdo->exec('TRUNCATE TABLE usuarios, pessoas, cartoes, categorias, transacoes, divisoes_transacao, contas_fixas RESTART IDENTITY CASCADE');
+    $pdo->exec('TRUNCATE TABLE tentativas_login, usuarios, pessoas, cartoes, categorias, transacoes, divisoes_transacao, contas_fixas RESTART IDENTITY CASCADE');
 }
 
 $totalArquivos = 0;

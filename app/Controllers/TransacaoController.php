@@ -65,12 +65,13 @@ class TransacaoController {
 
     private function inserirTransacao(array $dadosTransacao) {
         $sql = "INSERT INTO transacoes
-            (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id, hash_parcelamento)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id, hash_parcelamento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
+            current_user_id(),
             $dadosTransacao['descricao'],
             $dadosTransacao['valor_total'],
             $dadosTransacao['tipo'],
@@ -85,7 +86,7 @@ class TransacaoController {
     }
 
     private function inserirDivisoes($transacaoId, array $divisoes) {
-        $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?)";
+        $sqlDiv = "INSERT INTO divisoes_transacao (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?, ?)";
         $stmtDiv = $this->pdo->prepare($sqlDiv);
 
         foreach ($divisoes as $divisao) {
@@ -94,6 +95,7 @@ class TransacaoController {
             }
 
             $stmtDiv->execute([
+                current_user_id(),
                 $transacaoId,
                 $divisao['pessoa_id'],
                 $divisao['valor_divisao'],
@@ -127,6 +129,7 @@ class TransacaoController {
      * TELA PRINCIPAL DE TRANSAÇÕES (Com Gráfico e Filtros)
      */
     public function index() {
+        $usuarioId = current_user_id();
         $mesReferencia = $_GET['mes'] ?? date('Y-m');
         $busca = isset($_GET['q']) ? trim($_GET['q']) : '';
 
@@ -137,13 +140,13 @@ class TransacaoController {
             (SELECT STRING_AGG(p.nome, ', ') 
              FROM divisoes_transacao dt2 
              JOIN pessoas p ON dt2.pessoa_id = p.id 
-             WHERE dt2.transacao_id = t.id) as amigos_nomes
+             WHERE dt2.transacao_id = t.id AND dt2.usuario_id = :usuario_divisoes) as amigos_nomes
             FROM transacoes t
             LEFT JOIN categorias c ON t.categoria_id = c.id
             LEFT JOIN cartoes cr ON t.cartao_id = cr.id
-            WHERE t.mes_referencia = :mes";
+            WHERE t.usuario_id = :usuario_id AND t.mes_referencia = :mes";
 
-        $params = [':mes' => $mesReferencia];
+        $params = [':usuario_id' => $usuarioId, ':usuario_divisoes' => $usuarioId, ':mes' => $mesReferencia];
 
         if (!empty($busca)) {
             // Substituído LIKE por ILIKE para ignorar maiúsculas/minúsculas no PostgreSQL
@@ -154,12 +157,13 @@ class TransacaoController {
                 OR EXISTS (
                     SELECT 1 FROM divisoes_transacao dt3 
                     JOIN pessoas p2 ON dt3.pessoa_id = p2.id 
-                    WHERE dt3.transacao_id = t.id AND p2.nome ILIKE :b4
+                    WHERE dt3.transacao_id = t.id AND dt3.usuario_id = :usuario_busca AND p2.nome ILIKE :b4
                 )
             )";
             $termo = "%$busca%";
             $params[':b1'] = $termo; $params[':b2'] = $termo; 
             $params[':b3'] = $termo; $params[':b4'] = $termo;
+            $params[':usuario_busca'] = $usuarioId;
         }
 
         $sqlListagem .= " ORDER BY t.data_movimentacao DESC";
@@ -173,14 +177,15 @@ class TransacaoController {
             FROM divisoes_transacao dt 
             JOIN transacoes t ON dt.transacao_id = t.id 
             JOIN categorias c ON t.categoria_id = c.id 
-            WHERE t.mes_referencia = ? 
+            WHERE t.usuario_id = ?
+            AND t.mes_referencia = ?
             AND dt.pessoa_id IS NULL 
             AND t.tipo = 'despesa'
             GROUP BY c.nome 
             ORDER BY total DESC";
         
         $stmtG = $this->pdo->prepare($sqlGrafico);
-        $stmtG->execute([$mesReferencia]);
+        $stmtG->execute([$usuarioId, $mesReferencia]);
         $dadosGrafico = $stmtG->fetchAll();
 
         // Variável para o título em português
@@ -198,9 +203,16 @@ class TransacaoController {
     // --- MÉTODOS DE CRIAÇÃO ---
 
     public function nova() {
-        $pessoas = $this->pdo->query("SELECT id, nome FROM pessoas ORDER BY nome ASC")->fetchAll();
-        $categorias = $this->pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
-        $cartoes = $this->pdo->query("SELECT id, nome FROM cartoes ORDER BY nome ASC")->fetchAll();
+        $usuarioId = current_user_id();
+        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtPessoas->execute([$usuarioId]);
+        $pessoas = $stmtPessoas->fetchAll();
+        $stmtCategorias = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCategorias->execute([$usuarioId]);
+        $categorias = $stmtCategorias->fetchAll();
+        $stmtCartoes = $this->pdo->prepare("SELECT id, nome FROM cartoes WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCartoes->execute([$usuarioId]);
+        $cartoes = $stmtCartoes->fetchAll();
 
         require_once '../app/Views/nova-transacao.php';
     }
@@ -295,7 +307,9 @@ class TransacaoController {
                 if ($this->pdo->inTransaction()) {
                     $this->pdo->rollBack();
                 }
-                echo "Erro ao salvar: " . $e->getMessage();
+                error_log((string) $e);
+                header('Location: ' . app_url('nova-conta') . '?erro=salvar');
+                exit;
             }
         }
     }
@@ -303,26 +317,40 @@ class TransacaoController {
     // --- MÉTODOS DE EDIÇÃO ---
 
     public function editar() {
+        $usuarioId = current_user_id();
         $id = $_GET['id'] ?? null;
         if (!$id) { header('Location: ' . app_url()); exit; }
 
-        $stmt = $this->pdo->prepare("SELECT * FROM transacoes WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->pdo->prepare("SELECT * FROM transacoes WHERE id = ? AND usuario_id = ?");
+        $stmt->execute([$id, $usuarioId]);
         $transacao = $stmt->fetch();
 
-        $stmtDiv = $this->pdo->prepare("SELECT * FROM divisoes_transacao WHERE transacao_id = ?");
-        $stmtDiv->execute([$id]);
+        if (!$transacao) {
+            http_response_code(404);
+            echo 'Transação não encontrada.';
+            exit;
+        }
+
+        $stmtDiv = $this->pdo->prepare("SELECT * FROM divisoes_transacao WHERE transacao_id = ? AND usuario_id = ?");
+        $stmtDiv->execute([$id, $usuarioId]);
         $divisoesAtuais = $stmtDiv->fetchAll();
 
-        $pessoas = $this->pdo->query("SELECT id, nome FROM pessoas ORDER BY nome ASC")->fetchAll();
-        $categorias = $this->pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
-        $cartoes = $this->pdo->query("SELECT id, nome FROM cartoes ORDER BY nome ASC")->fetchAll();
+        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtPessoas->execute([$usuarioId]);
+        $pessoas = $stmtPessoas->fetchAll();
+        $stmtCategorias = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCategorias->execute([$usuarioId]);
+        $categorias = $stmtCategorias->fetchAll();
+        $stmtCartoes = $this->pdo->prepare("SELECT id, nome FROM cartoes WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCartoes->execute([$usuarioId]);
+        $cartoes = $stmtCartoes->fetchAll();
 
         require_once '../app/Views/editar-transacao.php';
     }
 
     public function atualizar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $usuarioId = current_user_id();
             $id = $_POST['id'];
             $mesReferencia = $_POST['mes_referencia'];
             
@@ -352,20 +380,24 @@ class TransacaoController {
 
             try {
                 $this->pdo->beginTransaction();
-                $sql = "UPDATE transacoes SET descricao = ?, valor_total = ?, tipo = ?, data_movimentacao = ?, mes_referencia = ?, categoria_id = ?, cartao_id = ? WHERE id = ?";
+                $sql = "UPDATE transacoes SET descricao = ?, valor_total = ?, tipo = ?, data_movimentacao = ?, mes_referencia = ?, categoria_id = ?, cartao_id = ? WHERE id = ? AND usuario_id = ?";
                 $stmt = $this->pdo->prepare($sql);
                 $stmt->execute([
                     $dadosTransacao['descricao'], $dadosTransacao['valor_total'], $dadosTransacao['tipo'],
                     $dadosTransacao['data_movimentacao'], $dadosTransacao['mes_referencia'],
-                    $dadosTransacao['categoria_id'], $dadosTransacao['cartao_id'], $id
+                    $dadosTransacao['categoria_id'], $dadosTransacao['cartao_id'], $id, $usuarioId
                 ]);
 
-                $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
-                $sqlDiv = "INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?)";
+                if ($stmt->rowCount() !== 1) {
+                    throw new RuntimeException('Transação não encontrada.');
+                }
+
+                $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ? AND usuario_id = ?")->execute([$id, $usuarioId]);
+                $sqlDiv = "INSERT INTO divisoes_transacao (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, ?, ?)";
                 $stmtDiv = $this->pdo->prepare($sqlDiv);
                 foreach ($divisoes as $div) {
                     $stmtDiv->execute([
-                        $id, !empty($div['pessoa_id']) ? $div['pessoa_id'] : null,
+                        $usuarioId, $id, !empty($div['pessoa_id']) ? $div['pessoa_id'] : null,
                         $div['valor_divisao'], $div['status_pago']
                     ]);
                 }
@@ -373,8 +405,12 @@ class TransacaoController {
                 header('Location: ' . app_url() . "?mes={$mesReferencia}&sucesso=1");
                 exit;
             } catch (Exception $e) {
-                $this->pdo->rollBack();
-                echo "Erro ao atualizar: " . $e->getMessage();
+                if ($this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
+                error_log((string) $e);
+                header('Location: ' . app_url('editar-transacao') . '?id=' . urlencode((string) $id) . '&erro=atualizar');
+                exit;
             }
         }
     }
@@ -382,10 +418,11 @@ class TransacaoController {
     // --- MÉTODO DE EXCLUSÃO ---
 
     public function deletar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $usuarioId = current_user_id();
+        $id = $_POST['id'] ?? null;
         if ($id) {
-            $this->pdo->prepare("DELETE FROM divisoes_transacao WHERE transacao_id = ?")->execute([$id]);
-            $this->pdo->prepare("DELETE FROM transacoes WHERE id = ?")->execute([$id]);
+            $this->pdo->prepare("DELETE FROM transacoes WHERE id = ? AND usuario_id = ?")->execute([$id, $usuarioId]);
         }
         $redirect = app_url() . '?sucesso=1';
 

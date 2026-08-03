@@ -40,6 +40,7 @@
             <h3 class="text-lg font-semibold text-slate-800 mb-4">Nova Categoria</h3>
 
             <form action="<?= htmlspecialchars(app_url('categorias')) ?>" method="POST" class="space-y-4">
+                <?= csrf_field() ?>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1.5">Nome</label>
                     <input type="text" name="nome" placeholder="Ex: Alimentação" required class="w-full rounded-lg border border-slate-300 px-3 py-2.5 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -97,9 +98,11 @@
                                 <button type="button" onclick="abrirModalCategoria('modal-categoria-<?= $c['id'] ?>')" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700">
                                     Editar
                                 </button>
-                                <a href="<?= htmlspecialchars(app_url('deletar-categoria')) ?>?id=<?= $c['id'] ?>" onclick="return confirm('Deseja realmente excluir esta categoria?')" class="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100">
-                                    Excluir
-                                </a>
+                                <form action="<?= htmlspecialchars(app_url('deletar-categoria')) ?>" method="POST" class="inline" onsubmit="return confirm('Deseja realmente excluir esta categoria?')">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
+                                    <button class="inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100">Excluir</button>
+                                </form>
                             </div>
                         </li>
                     <?php endforeach; ?>
@@ -127,6 +130,7 @@
                     </div>
 
                     <form action="<?= htmlspecialchars(app_url('atualizar-categoria')) ?>" method="POST" class="px-6 py-5 space-y-5">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="id" value="<?= $c['id'] ?>">
 
                         <div>

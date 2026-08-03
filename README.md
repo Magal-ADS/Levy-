@@ -46,19 +46,44 @@ Banco local do Docker:
 localhost:5433
 ```
 
+O PostgreSQL fica publicado apenas em `127.0.0.1`, portanto nao aceita conexoes
+diretas de outros computadores da rede.
+
+## Primeiro acesso e usuarios
+
+Ao iniciar uma base que ainda nao possui credenciais, acesse:
+
+```text
+http://localhost:8083/index.php/setup
+```
+
+Cadastre o e-mail e uma senha de pelo menos 12 caracteres. Essa primeira conta
+se torna administradora e recebe todos os dados que ja existiam antes da
+migracao multiusuario.
+
+Depois do login, administradores podem abrir **Usuarios** no menu para criar
+novas contas. Cada conta possui categorias, cartoes, pessoas, contas fixas,
+transacoes e recebimentos isolados. Novos usuarios recebem somente as categorias
+iniciais e nao enxergam dados de outras contas.
+
+As senhas da aplicacao nao devem ser iguais a senha do Linux ou do banco.
+
 ## Rodar em segundo plano
 
 ```bash
 docker compose up --build -d
 ```
 
-## Criar as tabelas
+## Criar ou atualizar as tabelas
 
 Depois que os containers subirem:
 
 ```bash
 docker compose exec app php migrate.php
 ```
+
+A migracao tambem e executada automaticamente antes do Apache a cada inicio do
+container. Ela e idempotente e pode ser executada novamente com seguranca.
 
 ## Rodar seed de exemplo
 

@@ -9,14 +9,16 @@ class CartaoController {
     }
 
     public function index() {
-        $cartoes = $this->pdo->query("SELECT * FROM cartoes ORDER BY nome ASC")->fetchAll();
+        $stmt = $this->pdo->prepare("SELECT * FROM cartoes WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmt->execute([current_user_id()]);
+        $cartoes = $stmt->fetchAll();
         require_once '../app/Views/cartoes.php';
     }
 
     public function salvar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['nome'])) {
-            $stmt = $this->pdo->prepare("INSERT INTO cartoes (nome) VALUES (?)");
-            $stmt->execute([trim($_POST['nome'])]);
+            $stmt = $this->pdo->prepare("INSERT INTO cartoes (usuario_id, nome) VALUES (?, ?)");
+            $stmt->execute([current_user_id(), trim($_POST['nome'])]);
         }
         header('Location: ' . app_url('cartoes') . '?sucesso=1');
         exit;
@@ -24,11 +26,12 @@ class CartaoController {
 
     // ESSA É A FUNÇÃO QUE ESTAVA FALTANDO:
     public function deletar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $id = $_POST['id'] ?? null;
         if ($id) {
             try {
-                $stmt = $this->pdo->prepare("DELETE FROM cartoes WHERE id = ?");
-                $stmt->execute([$id]);
+                $stmt = $this->pdo->prepare("DELETE FROM cartoes WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$id, current_user_id()]);
                 header('Location: ' . app_url('cartoes') . '?sucesso=1');
             } catch (Exception $e) {
                 // Se der erro de vínculo (cartão sendo usado em alguma conta), avisa na URL

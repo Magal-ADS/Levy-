@@ -23,27 +23,34 @@ class ContaFixaController {
      * Lista os moldes de contas fixas e verifica o status de pagamento no mês atual
      */
     public function index() {
+        $usuarioId = current_user_id();
         // O sistema sempre olha para o mês atual para saber o que já foi "baixado"
         $mesReferencia = date('Y-m');
 
-        $contas = $this->pdo->query("
+        $stmtContas = $this->pdo->prepare("
             SELECT cf.*, c.nome as categoria_nome, cr.nome as cartao_nome 
             FROM contas_fixas cf 
             LEFT JOIN categorias c ON cf.categoria_id = c.id 
             LEFT JOIN cartoes cr ON cf.cartao_id = cr.id 
-            WHERE cf.ativo = 1
+            WHERE cf.ativo = 1 AND cf.usuario_id = ?
             ORDER BY cf.dia_vencimento ASC
-        ")->fetchAll();
+        ");
+        $stmtContas->execute([$usuarioId]);
+        $contas = $stmtContas->fetchAll();
 
         // CORREÇÃO DO BUG: Usamos a chave $key para evitar que o PHP sobrescreva os dados na memória
         foreach ($contas as $key => $cf) {
-            $stmt = $this->pdo->prepare("SELECT id FROM transacoes WHERE descricao = ? AND mes_referencia = ?");
-            $stmt->execute([$cf['descricao'], $mesReferencia]);
+            $stmt = $this->pdo->prepare("SELECT id FROM transacoes WHERE descricao = ? AND mes_referencia = ? AND usuario_id = ?");
+            $stmt->execute([$cf['descricao'], $mesReferencia, $usuarioId]);
             $contas[$key]['pago'] = $stmt->fetch() ? true : false;
         }
 
-        $categorias = $this->pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
-        $cartoes = $this->pdo->query("SELECT id, nome FROM cartoes ORDER BY nome ASC")->fetchAll();
+        $stmtCategorias = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCategorias->execute([$usuarioId]);
+        $categorias = $stmtCategorias->fetchAll();
+        $stmtCartoes = $this->pdo->prepare("SELECT id, nome FROM cartoes WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCartoes->execute([$usuarioId]);
+        $cartoes = $stmtCartoes->fetchAll();
 
         require_once '../app/Views/contas-fixas.php';
     }
@@ -53,10 +60,11 @@ class ContaFixaController {
      */
     public function salvar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $sql = "INSERT INTO contas_fixas (descricao, valor_estimado, dia_vencimento, categoria_id, cartao_id, tipo_pagamento) 
-                    VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO contas_fixas (usuario_id, descricao, valor_estimado, dia_vencimento, categoria_id, cartao_id, tipo_pagamento)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([
+                current_user_id(),
                 $_POST['descricao'],
                 $this->limparMoeda($_POST['valor_estimado']),
                 $_POST['dia_vencimento'],
@@ -74,7 +82,9 @@ class ContaFixaController {
      * "Dá baixa" em uma conta fixa, transformando-a em uma transação real no mês atual
      */
     public function pagar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $usuarioId = current_user_id();
+        $id = $_POST['id'] ?? null;
         if (!$id) {
             header('Location: ' . app_url('contas-fixas'));
             exit;
@@ -83,8 +93,8 @@ class ContaFixaController {
         $mesReferencia = date('Y-m');
 
         // Busca o "molde" da conta fixa
-        $stmt = $this->pdo->prepare("SELECT * FROM contas_fixas WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->pdo->prepare("SELECT * FROM contas_fixas WHERE id = ? AND usuario_id = ?");
+        $stmt->execute([$id, $usuarioId]);
         $conta = $stmt->fetch();
 
         if (!$conta) {
@@ -99,10 +109,11 @@ class ContaFixaController {
             $dataMovimentacao = date('Y-m-') . str_pad($conta['dia_vencimento'], 2, '0', STR_PAD_LEFT);
             
             // 1. Insere a transação principal
-            $sqlT = "INSERT INTO transacoes (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id) 
-                     VALUES (?, ?, 'despesa', ?, ?, ?, ?)";
+            $sqlT = "INSERT INTO transacoes (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id)
+                     VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?)";
             $stmtT = $this->pdo->prepare($sqlT);
             $stmtT->execute([
+                $usuarioId,
                 $conta['descricao'], 
                 $conta['valor_estimado'], 
                 $dataMovimentacao, 
@@ -115,8 +126,8 @@ class ContaFixaController {
 
             // 2. Registra a sua parte (Magal/Levy) na tabela de divisões
             // pessoa_id = NULL significa que a conta é sua
-            $this->pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, NULL, ?, 1)")
-                      ->execute([$transacaoId, $conta['valor_estimado']]);
+            $this->pdo->prepare("INSERT INTO divisoes_transacao (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, NULL, ?, 1)")
+                      ->execute([$usuarioId, $transacaoId, $conta['valor_estimado']]);
 
             $this->pdo->commit();
             header('Location: ' . app_url('contas-fixas') . '?sucesso=1');
@@ -125,7 +136,9 @@ class ContaFixaController {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            echo "Erro ao processar pagamento: " . $e->getMessage();
+            error_log((string) $e);
+            header('Location: ' . app_url('contas-fixas') . '?erro=pagamento');
+            exit;
         }
     }
 
@@ -133,10 +146,12 @@ class ContaFixaController {
      * Desativa um molde de conta fixa (Soft Delete)
      */
     public function deletar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $id = $_POST['id'] ?? null;
         if ($id) {
             // Apenas desativamos para manter a integridade de lançamentos antigos
-            $this->pdo->prepare("UPDATE contas_fixas SET ativo = 0 WHERE id = ?")->execute([$id]);
+            $this->pdo->prepare("UPDATE contas_fixas SET ativo = 0 WHERE id = ? AND usuario_id = ?")
+                ->execute([$id, current_user_id()]);
         }
         header('Location: ' . app_url('contas-fixas') . '?sucesso=1');
         exit;

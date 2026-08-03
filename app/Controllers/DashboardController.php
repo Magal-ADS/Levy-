@@ -25,7 +25,7 @@ class DashboardController {
         $partesData = explode('-', $mesReferencia);
         $nomeMesAno = $mesesBr[$partesData[1]] . ' de ' . $partesData[0];
 
-        $usuarioId = 1;
+        $usuarioId = current_user_id();
 
         $stmt = $this->pdo->prepare("SELECT saldo_inicial_mes FROM usuarios WHERE id = ?");
         $stmt->execute([$usuarioId]);
@@ -44,9 +44,10 @@ class DashboardController {
                           ), 0) AS minhas_despesas
                       FROM transacoes t
                       JOIN divisoes_transacao dt ON dt.transacao_id = t.id
-                      WHERE t.mes_referencia = ?";
+                      WHERE t.usuario_id = ?
+                        AND t.mes_referencia = ?";
         $stmtResumo = $this->pdo->prepare($sqlResumo);
-        $stmtResumo->execute([$mesReferencia]);
+        $stmtResumo->execute([$usuarioId, $mesReferencia]);
         $resumo = $stmtResumo->fetch();
 
         $entradasReais = (float) ($resumo['entradas_reais'] ?? 0);
@@ -55,13 +56,14 @@ class DashboardController {
 
         $sqlFixasAuto = "SELECT SUM(valor_estimado) as total
                          FROM contas_fixas
-                         WHERE tipo_pagamento = 'automatico'
+                         WHERE usuario_id = ?
+                           AND tipo_pagamento = 'automatico'
                            AND ativo = 1
                            AND descricao NOT IN (
-                               SELECT descricao FROM transacoes WHERE mes_referencia = ?
+                               SELECT descricao FROM transacoes WHERE usuario_id = ? AND mes_referencia = ?
                            )";
         $stmtFixas = $this->pdo->prepare($sqlFixasAuto);
-        $stmtFixas->execute([$mesReferencia]);
+        $stmtFixas->execute([$usuarioId, $usuarioId, $mesReferencia]);
         $fixasComprometidas = (float) ($stmtFixas->fetch()['total'] ?? 0);
 
         $sqlGraficoCategorias = "SELECT
@@ -71,12 +73,13 @@ class DashboardController {
                                  JOIN transacoes t ON dt.transacao_id = t.id
                                  LEFT JOIN categorias c ON t.categoria_id = c.id
                                  WHERE dt.pessoa_id IS NULL
+                                   AND t.usuario_id = ?
                                    AND t.tipo = 'despesa'
                                    AND t.mes_referencia = ?
                                  GROUP BY COALESCE(c.nome, 'Sem categoria')
                                  ORDER BY total DESC, categoria_nome ASC";
         $stmtGraficoCategorias = $this->pdo->prepare($sqlGraficoCategorias);
-        $stmtGraficoCategorias->execute([$mesReferencia]);
+        $stmtGraficoCategorias->execute([$usuarioId, $mesReferencia]);
         $gastosPorCategoria = $stmtGraficoCategorias->fetchAll();
 
         $coresGraficoBase = [
@@ -103,12 +106,12 @@ class DashboardController {
         }
 
         // carregar categorias e pessoas para o filtro
-        $stmtCat = $this->pdo->prepare("SELECT id, nome FROM categorias ORDER BY nome ASC");
-        $stmtCat->execute();
+        $stmtCat = $this->pdo->prepare("SELECT id, nome FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtCat->execute([$usuarioId]);
         $categorias = $stmtCat->fetchAll();
 
-        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas ORDER BY nome ASC");
-        $stmtPessoas->execute();
+        $stmtPessoas = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmtPessoas->execute([$usuarioId]);
         $pessoas = $stmtPessoas->fetchAll();
 
         $saldoDisponivel = ($saldoInicial + $entradasReais) - $minhasDespesas - $fixasComprometidas;
@@ -125,11 +128,17 @@ class DashboardController {
                            FILTER (WHERE p.id IS NOT NULL) AS amigos_nomes
                 FROM divisoes_transacao dt
                 LEFT JOIN pessoas p ON dt.pessoa_id = p.id
+                WHERE dt.usuario_id = :usuario_divisoes
                 GROUP BY dt.transacao_id
             ) divisao_resumo ON divisao_resumo.transacao_id = t.id
-            WHERE t.mes_referencia = :mes";
+            WHERE t.usuario_id = :usuario_id
+              AND t.mes_referencia = :mes";
 
-        $params = [':mes' => $mesReferencia];
+        $params = [
+            ':usuario_id' => $usuarioId,
+            ':usuario_divisoes' => $usuarioId,
+            ':mes' => $mesReferencia,
+        ];
 
         if ($busca !== '') {
             $sqlLancamentos .= " AND (
@@ -161,15 +170,19 @@ class DashboardController {
                 $sqlLancamentos .= " AND EXISTS (
                     SELECT 1 FROM divisoes_transacao dt_filtro
                     WHERE dt_filtro.transacao_id = t.id
+                      AND dt_filtro.usuario_id = :usuario_filtro
                       AND dt_filtro.pessoa_id IS NULL
                 )";
+                $params[':usuario_filtro'] = $usuarioId;
             } elseif (is_numeric($p)) {
                 $sqlLancamentos .= " AND EXISTS (
                     SELECT 1 FROM divisoes_transacao dt_filtro
                     WHERE dt_filtro.transacao_id = t.id
+                      AND dt_filtro.usuario_id = :usuario_filtro
                       AND dt_filtro.pessoa_id = :pessoa_id
                 )";
                 $params[':pessoa_id'] = (int) $p;
+                $params[':usuario_filtro'] = $usuarioId;
             }
         }
 

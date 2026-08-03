@@ -17,6 +17,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <h3 class="text-lg font-medium text-slate-800 mb-4">Nova Pessoa</h3>
                 <form action="<?= htmlspecialchars(app_url('pessoas')) ?>" method="POST">
+                    <?= csrf_field() ?>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-slate-700 mb-1">Nome</label>
                         <input type="text" name="nome" required placeholder="Ex: Gustavo" class="w-full border-gray-300 border rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">

@@ -1,3 +1,4 @@
+<?php $usuarioLogado = current_user(); ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -107,8 +108,22 @@
                         Meu Perfil
                     </span>
                 </a>
+                <?php if (Auth::isAdmin()): ?>
+                    <a href="<?= htmlspecialchars(app_url('usuarios')) ?>" class="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors group">
+                        <span class="flex items-center gap-3"><span class="text-lg">🔐</span> Usuários</span>
+                    </a>
+                <?php endif; ?>
             </div>
         </nav>
+
+        <div class="border-t border-slate-800 p-4">
+            <p class="truncate text-sm font-semibold text-white"><?= htmlspecialchars($usuarioLogado['nome'] ?? '') ?></p>
+            <p class="truncate text-xs text-slate-400"><?= htmlspecialchars($usuarioLogado['email'] ?? '') ?></p>
+            <form action="<?= htmlspecialchars(app_url('logout')) ?>" method="POST" class="mt-3">
+                <?= csrf_field() ?>
+                <button class="w-full rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white">Sair</button>
+            </form>
+        </div>
     </aside>
 
     <div class="flex-1 flex flex-col overflow-hidden w-full">

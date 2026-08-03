@@ -10,6 +10,7 @@ class RecebimentoController {
     }
 
     public function index() {
+        $usuarioId = current_user_id();
         $mesReferencia = $_GET['mes'] ?? date('Y-m');
         if (!preg_match('/^\d{4}-\d{2}$/', $mesReferencia)) {
             $mesReferencia = date('Y-m');
@@ -21,12 +22,13 @@ class RecebimentoController {
                 JOIN transacoes t ON dt.transacao_id = t.id
                 JOIN pessoas p ON dt.pessoa_id = p.id
                 WHERE dt.status_pago = 0
+                  AND t.usuario_id = :usuario_id
                   AND dt.pessoa_id IS NOT NULL
                   AND t.mes_referencia = :mes
                 ORDER BY p.nome ASC, t.data_movimentacao DESC";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['mes' => $mesReferencia]);
+        $stmt->execute(['usuario_id' => $usuarioId, 'mes' => $mesReferencia]);
         $resultados = $stmt->fetchAll();
 
         $pessoasAgrupadas = [];
@@ -53,10 +55,11 @@ class RecebimentoController {
                       FROM divisoes_transacao dt
                       INNER JOIN transacoes t ON t.id = dt.transacao_id
                       WHERE dt.pessoa_id IS NULL
+                        AND t.usuario_id = :usuario_id
                         AND t.mes_referencia = :mes
                       ORDER BY t.data_movimentacao DESC";
         $stmtMinhas = $this->pdo->prepare($sqlMinhas);
-        $stmtMinhas->execute(['mes' => $mesReferencia]);
+        $stmtMinhas->execute(['usuario_id' => $usuarioId, 'mes' => $mesReferencia]);
         $itensMinhas = $stmtMinhas->fetchAll();
 
         $totalMinhas = 0;
@@ -118,24 +121,27 @@ class RecebimentoController {
     }
 
     public function baixar() {
-        $model = new Transacao($this->pdo);
-        $mes = $_GET['mes'] ?? date('Y-m');
+        require_post_request();
+        $usuarioId = current_user_id();
+        $model = new Transacao($this->pdo, $usuarioId);
+        $mes = $_POST['mes'] ?? date('Y-m');
         if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
             $mes = date('Y-m');
         }
 
-        if (isset($_GET['id'])) {
-            $model->confirmarPagamentoAmigo($_GET['id']);
-        } elseif (isset($_GET['pessoa_id'])) {
-            $pessoaId = $_GET['pessoa_id'];
+        if (isset($_POST['id'])) {
+            $model->confirmarPagamentoAmigo($_POST['id']);
+        } elseif (isset($_POST['pessoa_id'])) {
+            $pessoaId = $_POST['pessoa_id'];
 
             $stmt = $this->pdo->prepare("
                 SELECT dt.id
                 FROM divisoes_transacao dt
                 JOIN transacoes t ON dt.transacao_id = t.id
                 WHERE dt.pessoa_id = ? AND dt.status_pago = 0 AND t.mes_referencia = ?
+                  AND t.usuario_id = ?
             ");
-            $stmt->execute([$pessoaId, $mes]);
+            $stmt->execute([$pessoaId, $mes, $usuarioId]);
             $divisoesPendentes = $stmt->fetchAll();
 
             foreach ($divisoesPendentes as $div) {
@@ -148,8 +154,9 @@ class RecebimentoController {
     }
 
     private function buscarRelatorioPessoa(int $pessoaId, string $mesReferencia): array {
-        $stmtPessoa = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE id = ?");
-        $stmtPessoa->execute([$pessoaId]);
+        $usuarioId = current_user_id();
+        $stmtPessoa = $this->pdo->prepare("SELECT id, nome FROM pessoas WHERE id = ? AND usuario_id = ?");
+        $stmtPessoa->execute([$pessoaId, $usuarioId]);
         $pessoa = $stmtPessoa->fetch();
 
         $sql = "SELECT
@@ -161,10 +168,11 @@ class RecebimentoController {
                 FROM divisoes_transacao dt
                 JOIN transacoes t ON t.id = dt.transacao_id
                 WHERE dt.pessoa_id = ?
+                  AND t.usuario_id = ?
                   AND t.mes_referencia = ?
                 ORDER BY t.data_movimentacao ASC, t.id ASC";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$pessoaId, $mesReferencia]);
+        $stmt->execute([$pessoaId, $usuarioId, $mesReferencia]);
         $itens = $stmt->fetchAll();
 
         $totalGeral = 0;

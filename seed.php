@@ -46,11 +46,16 @@ $salarioBase = 2300.00;
 $checkUser = $pdo->query("SELECT COUNT(*) FROM usuarios")->fetchColumn();
 
 if ($checkUser == 0) {
-    $stmt = $pdo->prepare("INSERT INTO usuarios (nome, salario_base, saldo_inicial_mes) VALUES (?, ?, 0.00)");
+    $stmt = $pdo->prepare("INSERT INTO usuarios (nome, salario_base, saldo_inicial_mes, is_admin) VALUES (?, ?, 0.00, 1)");
     $stmt->execute([$usuarioNome, $salarioBase]);
     echo "   [OK] Usuario $usuarioNome criado com sucesso.\n";
 } else {
     echo "   [--] Usuario ja existe no sistema.\n";
+}
+
+$usuarioId = (int) $pdo->query("SELECT id FROM usuarios ORDER BY id ASC LIMIT 1")->fetchColumn();
+if ($usuarioId <= 0) {
+    throw new RuntimeException('Nenhum usuário proprietário disponível. Execute migrate.php primeiro.');
 }
 
 echo "\n2. Categorias Base...\n";
@@ -66,10 +71,10 @@ $categorias = [
     ['nome' => 'Outros', 'tipo' => 'despesa'],
 ];
 
-$stmtCat = $pdo->prepare("INSERT INTO categorias (nome, tipo) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nome = ?)");
+$stmtCat = $pdo->prepare("INSERT INTO categorias (usuario_id, nome, tipo) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE usuario_id = ? AND nome = ?)");
 
 foreach ($categorias as $categoria) {
-    $stmtCat->execute([$categoria['nome'], $categoria['tipo'], $categoria['nome']]);
+    $stmtCat->execute([$usuarioId, $categoria['nome'], $categoria['tipo'], $usuarioId, $categoria['nome']]);
     if ($stmtCat->rowCount() > 0) {
         echo "   [OK] Categoria: {$categoria['nome']}\n";
     } else {
@@ -84,10 +89,10 @@ $cartoes = [
     ['nome' => 'Inter', 'nome_cartao' => 'Inter Reserva'],
 ];
 
-$stmtCar = $pdo->prepare("INSERT INTO cartoes (nome, nome_cartao) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM cartoes WHERE nome = ?)");
+$stmtCar = $pdo->prepare("INSERT INTO cartoes (usuario_id, nome, nome_cartao) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM cartoes WHERE usuario_id = ? AND nome = ?)");
 
 foreach ($cartoes as $cartao) {
-    $stmtCar->execute([$cartao['nome'], $cartao['nome_cartao'], $cartao['nome']]);
+    $stmtCar->execute([$usuarioId, $cartao['nome'], $cartao['nome_cartao'], $usuarioId, $cartao['nome']]);
     if ($stmtCar->rowCount() > 0) {
         echo "   [OK] Cartao: {$cartao['nome']}\n";
     } else {
@@ -99,10 +104,10 @@ echo "\n4. Pessoas...\n";
 
 $pessoas = ['Lucio', 'Gustavo', 'Daise'];
 
-$stmtPessoa = $pdo->prepare("INSERT INTO pessoas (nome) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM pessoas WHERE nome = ?)");
+$stmtPessoa = $pdo->prepare("INSERT INTO pessoas (usuario_id, nome) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM pessoas WHERE usuario_id = ? AND nome = ?)");
 
 foreach ($pessoas as $pessoa) {
-    $stmtPessoa->execute([$pessoa, $pessoa]);
+    $stmtPessoa->execute([$usuarioId, $pessoa, $usuarioId, $pessoa]);
     if ($stmtPessoa->rowCount() > 0) {
         echo "   [OK] Pessoa: $pessoa\n";
     } else {

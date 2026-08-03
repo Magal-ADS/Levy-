@@ -10,7 +10,8 @@ class PessoaController {
 
     // 1. Lista todos os amigos
     public function index() {
-        $stmt = $this->pdo->query("SELECT * FROM pessoas ORDER BY nome ASC");
+        $stmt = $this->pdo->prepare("SELECT * FROM pessoas WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmt->execute([current_user_id()]);
         $pessoas = $stmt->fetchAll();
         
         require_once '../app/Views/pessoas.php';
@@ -22,8 +23,8 @@ class PessoaController {
             $nome = trim($_POST['nome']);
             
             if (!empty($nome)) {
-                $stmt = $this->pdo->prepare("INSERT INTO pessoas (nome) VALUES (?)");
-                $stmt->execute([$nome]);
+                $stmt = $this->pdo->prepare("INSERT INTO pessoas (usuario_id, nome) VALUES (?, ?)");
+                $stmt->execute([current_user_id(), $nome]);
             }
             
             header('Location: ' . app_url('pessoas') . '?sucesso=1');
@@ -39,8 +40,8 @@ class PessoaController {
             exit;
         }
 
-        $stmt = $this->pdo->prepare("SELECT * FROM pessoas WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->pdo->prepare("SELECT * FROM pessoas WHERE id = ? AND usuario_id = ?");
+        $stmt->execute([$id, current_user_id()]);
         $pessoa = $stmt->fetch();
 
         if (!$pessoa) {
@@ -58,8 +59,8 @@ class PessoaController {
             $nome = trim($_POST['nome']);
 
             if (!empty($id) && !empty($nome)) {
-                $stmt = $this->pdo->prepare("UPDATE pessoas SET nome = ? WHERE id = ?");
-                $stmt->execute([$nome, $id]);
+                $stmt = $this->pdo->prepare("UPDATE pessoas SET nome = ? WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$nome, $id, current_user_id()]);
             }
 
             header('Location: ' . app_url('pessoas') . '?sucesso=1');
@@ -69,13 +70,14 @@ class PessoaController {
 
     // 5. Remove um amigo do sistema
     public function deletar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $id = $_POST['id'] ?? null;
         
         if ($id) {
             try {
                 // Tenta deletar a pessoa
-                $stmt = $this->pdo->prepare("DELETE FROM pessoas WHERE id = ?");
-                $stmt->execute([$id]);
+                $stmt = $this->pdo->prepare("DELETE FROM pessoas WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$id, current_user_id()]);
                 header('Location: ' . app_url('pessoas') . '?sucesso=1');
             } catch (PDOException $e) {
                 // Se cair aqui, é porque ela tem transações vinculadas no banco

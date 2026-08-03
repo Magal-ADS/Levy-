@@ -9,7 +9,9 @@ class CategoriaController {
     }
 
     public function index() {
-        $categorias = $this->pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+        $stmt = $this->pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ? ORDER BY nome ASC");
+        $stmt->execute([current_user_id()]);
+        $categorias = $stmt->fetchAll();
         require_once '../app/Views/categorias.php';
     }
 
@@ -28,8 +30,8 @@ class CategoriaController {
                 exit;
             }
 
-            $stmt = $this->pdo->prepare("INSERT INTO categorias (nome, tipo) VALUES (?, ?)");
-            $stmt->execute([$nome, $tipo]);
+            $stmt = $this->pdo->prepare("INSERT INTO categorias (usuario_id, nome, tipo) VALUES (?, ?, ?)");
+            $stmt->execute([current_user_id(), $nome, $tipo]);
         }
 
         header('Location: ' . app_url('categorias') . '?sucesso=criada');
@@ -57,8 +59,8 @@ class CategoriaController {
                 exit;
             }
 
-            $stmt = $this->pdo->prepare("UPDATE categorias SET nome = ?, tipo = ? WHERE id = ?");
-            $stmt->execute([$nome, $tipo, $id]);
+            $stmt = $this->pdo->prepare("UPDATE categorias SET nome = ?, tipo = ? WHERE id = ? AND usuario_id = ?");
+            $stmt->execute([$nome, $tipo, $id, current_user_id()]);
         }
 
         header('Location: ' . app_url('categorias') . '?sucesso=atualizada');
@@ -66,11 +68,12 @@ class CategoriaController {
     }
 
     public function deletar() {
-        $id = $_GET['id'] ?? null;
+        require_post_request();
+        $id = $_POST['id'] ?? null;
         if ($id) {
             try {
-                $stmt = $this->pdo->prepare("DELETE FROM categorias WHERE id = ?");
-                $stmt->execute([$id]);
+                $stmt = $this->pdo->prepare("DELETE FROM categorias WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$id, current_user_id()]);
                 header('Location: ' . app_url('categorias') . '?sucesso=deletada');
             } catch (Exception $e) {
                 header('Location: ' . app_url('categorias') . '?erro=vinculo');

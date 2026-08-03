@@ -1,5 +1,21 @@
 <?php
 
+$appDebug = getenv('APP_DEBUG') === '1';
+ini_set('display_errors', $appDebug ? '1' : '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
+set_exception_handler(static function (Throwable $exception) use ($appDebug): void {
+    error_log((string) $exception);
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+    }
+    echo $appDebug
+        ? 'Erro interno: ' . $exception->getMessage()
+        : 'Não foi possível concluir a operação. Tente novamente.';
+});
+
 function app_normalize_web_path(string $path): string
 {
     $path = trim(str_replace('\\', '/', $path));
@@ -74,3 +90,8 @@ function asset_url(string $path = ''): string
 
     return ($basePath === '' ? '' : $basePath) . '/' . $path;
 }
+
+require_once __DIR__ . '/../app/Support/Auth.php';
+require_once __DIR__ . '/../app/Support/Csrf.php';
+
+Auth::boot();

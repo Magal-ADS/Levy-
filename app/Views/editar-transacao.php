@@ -8,6 +8,7 @@
 
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <form action="<?= htmlspecialchars(app_url('atualizar-transacao')) ?>" method="POST" class="p-6 md:p-8">
+            <?= csrf_field() ?>
             <input type="hidden" name="id" value="<?= $transacao['id'] ?>">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

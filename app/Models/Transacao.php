@@ -3,10 +3,12 @@
 
 class Transacao {
     private $pdo;
+    private int $usuarioId;
 
     // Recebe a conexão com o banco quando a classe for instanciada
-    public function __construct($pdo) {
+    public function __construct($pdo, ?int $usuarioId = null) {
         $this->pdo = $pdo;
+        $this->usuarioId = $usuarioId ?? current_user_id();
     }
 
     /**
@@ -19,13 +21,14 @@ class Transacao {
             $this->pdo->beginTransaction();
 
             // 2. Prepara e insere a transação principal
-            $sqlTransacao = "INSERT INTO transacoes 
-                (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+            $sqlTransacao = "INSERT INTO transacoes
+                (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id, cartao_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id";
             
             $stmt = $this->pdo->prepare($sqlTransacao);
             $stmt->execute([
+                $this->usuarioId,
                 $dados['descricao'],
                 $dados['valor_total'],
                 $dados['tipo'],
@@ -39,9 +42,9 @@ class Transacao {
             $transacaoId = $stmt->fetchColumn();
 
             // 4. Prepara a inserção das divisões
-            $sqlDivisao = "INSERT INTO divisoes_transacao 
-                (transacao_id, pessoa_id, valor_divisao, status_pago) 
-                VALUES (?, ?, ?, ?)";
+            $sqlDivisao = "INSERT INTO divisoes_transacao
+                (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago)
+                VALUES (?, ?, ?, ?, ?)";
             
             $stmtDivisao = $this->pdo->prepare($sqlDivisao);
 
@@ -50,6 +53,7 @@ class Transacao {
                 // SÓ SALVA NO BANCO SE O VALOR FOR MAIOR QUE ZERO
                 if ($divisao['valor_divisao'] > 0) {
                     $stmtDivisao->execute([
+                        $this->usuarioId,
                         $transacaoId,
                         $divisao['pessoa_id'] !== "" ? $divisao['pessoa_id'] : null, 
                         $divisao['valor_divisao'],
@@ -83,9 +87,9 @@ class Transacao {
                     FROM divisoes_transacao dt 
                     JOIN transacoes t ON dt.transacao_id = t.id 
                     JOIN pessoas p ON dt.pessoa_id = p.id
-                    WHERE dt.id = ?";
+                    WHERE dt.id = ? AND dt.usuario_id = ?";
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([$divisaoId]);
+            $stmt->execute([$divisaoId, $this->usuarioId]);
             $divisao = $stmt->fetch();
 
             if (!$divisao) {
@@ -93,17 +97,18 @@ class Transacao {
             }
 
             // 2. Marca a divisão original como paga (status = 1)
-            $stmtUpdate = $this->pdo->prepare("UPDATE divisoes_transacao SET status_pago = 1 WHERE id = ?");
-            $stmtUpdate->execute([$divisaoId]);
+            $stmtUpdate = $this->pdo->prepare("UPDATE divisoes_transacao SET status_pago = 1 WHERE id = ? AND usuario_id = ?");
+            $stmtUpdate->execute([$divisaoId, $this->usuarioId]);
 
             // 3. Cria uma nova transação de RECEITA (Entrada) no seu saldo
-            $sqlEntrada = "INSERT INTO transacoes 
-                (descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id) 
-                VALUES (?, ?, 'receita', CURRENT_DATE, ?, NULL)
+            $sqlEntrada = "INSERT INTO transacoes
+                (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, categoria_id)
+                VALUES (?, ?, ?, 'receita', CURRENT_DATE, ?, NULL)
                 RETURNING id";
             
             $stmtEntrada = $this->pdo->prepare($sqlEntrada);
             $stmtEntrada->execute([
+                $this->usuarioId,
                 "Recebimento: " . $divisao['nome_pessoa'] . " (" . $divisao['descricao'] . ")",
                 $divisao['valor_divisao'],
                 date('Y-m') // Registra no mês atual
@@ -111,8 +116,8 @@ class Transacao {
 
             // 4. Registra a divisão dessa entrada para você (pessoa_id = NULL)
             $novaTransacaoId = $stmtEntrada->fetchColumn();
-            $stmtDiv = $this->pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, NULL, ?, 1)");
-            $stmtDiv->execute([$novaTransacaoId, $divisao['valor_divisao']]);
+            $stmtDiv = $this->pdo->prepare("INSERT INTO divisoes_transacao (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, NULL, ?, 1)");
+            $stmtDiv->execute([$this->usuarioId, $novaTransacaoId, $divisao['valor_divisao']]);
 
             $this->pdo->commit();
             return true;
@@ -127,8 +132,8 @@ class Transacao {
      * Método simples para apenas alterar o status de uma divisão
      */
     public function darBaixaEmDivisao($divisaoId) {
-        $sql = "UPDATE divisoes_transacao SET status_pago = 1 WHERE id = ?";
+        $sql = "UPDATE divisoes_transacao SET status_pago = 1 WHERE id = ? AND usuario_id = ?";
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute([$divisaoId]);
+        return $stmt->execute([$divisaoId, $this->usuarioId]);
     }
 }

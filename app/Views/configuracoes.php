@@ -12,6 +12,11 @@
             Perfil atualizado com sucesso.
         </div>
     <?php endif; ?>
+    <?php if (isset($_GET['erro'])): ?>
+        <div class="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 shadow-sm">
+            Não foi possível salvar. Confira seu nome, a senha atual e a confirmação da nova senha.
+        </div>
+    <?php endif; ?>
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -21,12 +26,18 @@
             </div>
 
             <form action="<?= htmlspecialchars(app_url('salvar-configuracoes')) ?>" method="POST">
+                <?= csrf_field() ?>
                 <input type="hidden" name="mes" value="<?= htmlspecialchars($mesSelecionado) ?>">
 
                 <div class="grid grid-cols-1 gap-5">
                     <div>
                         <label class="mb-1.5 block text-sm font-medium text-slate-700">Seu Nome</label>
                         <input type="text" name="nome" value="<?= htmlspecialchars($usuario['nome'] ?? '') ?>" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-sm font-medium text-slate-700">E-mail de acesso</label>
+                        <input type="email" value="<?= htmlspecialchars($usuario['email'] ?? '') ?>" disabled class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500">
                     </div>
 
                     <div>
@@ -39,6 +50,15 @@
                         <input type="text" name="saldo_inicial_mes" value="<?= number_format((float) ($usuario['saldo_inicial_mes'] ?? 0), 2, ',', '.') ?>" oninput="mascaraMoeda(this)" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <p class="mt-2 text-xs text-slate-400">Esse valor representa o que sobrou do mês anterior e complementa sua base de saldo disponível.</p>
                     </div>
+
+                    <details class="rounded-xl border border-slate-200 p-4">
+                        <summary class="cursor-pointer font-medium text-slate-700">Alterar minha senha</summary>
+                        <div class="mt-4 grid gap-4">
+                            <input type="password" name="senha_atual" autocomplete="current-password" placeholder="Senha atual" class="w-full rounded-xl border border-slate-300 px-4 py-3">
+                            <input type="password" name="nova_senha" minlength="12" maxlength="255" autocomplete="new-password" placeholder="Nova senha (12+ caracteres)" class="w-full rounded-xl border border-slate-300 px-4 py-3">
+                            <input type="password" name="nova_senha_confirmacao" minlength="12" maxlength="255" autocomplete="new-password" placeholder="Confirmar nova senha" class="w-full rounded-xl border border-slate-300 px-4 py-3">
+                        </div>
+                    </details>
 
                     <div class="pt-2">
                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 font-medium text-white shadow-sm transition-colors hover:bg-indigo-700">

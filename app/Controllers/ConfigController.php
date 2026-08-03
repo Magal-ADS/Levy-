@@ -9,13 +9,14 @@ class ConfigController {
     }
 
     public function index() {
+        $usuarioId = current_user_id();
         $mesSelecionado = $_GET['mes'] ?? date('Y-m');
         if (!preg_match('/^\d{4}-\d{2}$/', $mesSelecionado)) {
             $mesSelecionado = date('Y-m');
         }
 
-        $stmt = $this->pdo->prepare("SELECT * FROM usuarios WHERE id = 1");
-        $stmt->execute();
+        $stmt = $this->pdo->prepare("SELECT id, nome, email, salario_base, saldo_inicial_mes FROM usuarios WHERE id = ?");
+        $stmt->execute([$usuarioId]);
         $usuario = $stmt->fetch();
 
         $salarioBase = (float) ($usuario['salario_base'] ?? 0);
@@ -27,13 +28,14 @@ class ConfigController {
                        INNER JOIN transacoes t ON t.id = dt.transacao_id
                        LEFT JOIN categorias c ON c.id = t.categoria_id
                        WHERE dt.pessoa_id IS NULL
+                         AND t.usuario_id = ?
                          AND t.tipo = 'despesa'
                          AND t.mes_referencia = ?
                        GROUP BY COALESCE(c.nome, 'Sem categoria')
                        ORDER BY total_gasto DESC, categoria_nome ASC";
 
         $stmtAnalise = $this->pdo->prepare($sqlAnalise);
-        $stmtAnalise->execute([$mesSelecionado]);
+        $stmtAnalise->execute([$usuarioId, $mesSelecionado]);
         $analiseCategorias = $stmtAnalise->fetchAll();
 
         $totalDespesasMes = 0;
@@ -56,6 +58,7 @@ class ConfigController {
 
     public function salvar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $usuarioId = current_user_id();
             $limparMoeda = function($valor) {
                 $valor = str_replace('.', '', $valor);
                 $valor = str_replace(',', '.', $valor);
@@ -71,8 +74,56 @@ class ConfigController {
                 $mesSelecionado = date('Y-m');
             }
 
-            $stmt = $this->pdo->prepare("UPDATE usuarios SET nome = ?, salario_base = ?, saldo_inicial_mes = ? WHERE id = 1");
-            $stmt->execute([$nome, $salario, $saldoInicial]);
+            if ($nome === '' || strlen($nome) > 100) {
+                header('Location: ' . app_url('configuracoes') . '?erro=nome');
+                exit;
+            }
+
+            $senhaAtual = (string) ($_POST['senha_atual'] ?? '');
+            $novaSenha = (string) ($_POST['nova_senha'] ?? '');
+            $confirmacao = (string) ($_POST['nova_senha_confirmacao'] ?? '');
+
+            $this->pdo->beginTransaction();
+            try {
+                $stmt = $this->pdo->prepare(
+                    "UPDATE usuarios
+                     SET nome = ?, salario_base = ?, saldo_inicial_mes = ?, atualizado_em = CURRENT_TIMESTAMP
+                     WHERE id = ?"
+                );
+                $stmt->execute([$nome, $salario, $saldoInicial, $usuarioId]);
+
+                if ($senhaAtual !== '' || $novaSenha !== '' || $confirmacao !== '') {
+                    $stmtPassword = $this->pdo->prepare("SELECT senha_hash FROM usuarios WHERE id = ? FOR UPDATE");
+                    $stmtPassword->execute([$usuarioId]);
+                    $hashAtual = (string) $stmtPassword->fetchColumn();
+
+                    if (!password_verify($senhaAtual, $hashAtual)) {
+                        throw new DomainException('senha_atual');
+                    }
+                    if (strlen($novaSenha) < 12 || strlen($novaSenha) > 255) {
+                        throw new DomainException('nova_senha');
+                    }
+                    if (!hash_equals($novaSenha, $confirmacao)) {
+                        throw new DomainException('confirmacao');
+                    }
+
+                    $stmtUpdatePassword = $this->pdo->prepare(
+                        "UPDATE usuarios SET senha_hash = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?"
+                    );
+                    $stmtUpdatePassword->execute([password_hash($novaSenha, PASSWORD_DEFAULT), $usuarioId]);
+                    session_regenerate_id(true);
+                }
+
+                $this->pdo->commit();
+                $_SESSION['auth_user']['nome'] = $nome;
+            } catch (DomainException $e) {
+                $this->pdo->rollBack();
+                header('Location: ' . app_url('configuracoes') . '?erro=' . urlencode($e->getMessage()) . '&mes=' . urlencode($mesSelecionado));
+                exit;
+            } catch (Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
 
             header('Location: ' . app_url('configuracoes') . '?sucesso=1&mes=' . urlencode($mesSelecionado));
             exit;
