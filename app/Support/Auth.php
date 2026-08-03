@@ -178,12 +178,15 @@ final class Auth
     public static function loginAllowed(PDO $pdo, string $key): bool
     {
         $stmt = $pdo->prepare(
-            "SELECT bloqueado_ate IS NULL OR bloqueado_ate <= CURRENT_TIMESTAMP
+            "SELECT CASE
+                 WHEN bloqueado_ate IS NULL OR bloqueado_ate <= CURRENT_TIMESTAMP THEN 1
+                 ELSE 0
+             END
              FROM tentativas_login WHERE chave = ?"
         );
         $stmt->execute([$key]);
         $allowed = $stmt->fetchColumn();
-        return $allowed === false || (bool) $allowed;
+        return $allowed === false || (int) $allowed === 1;
     }
 
     public static function recordFailedLogin(PDO $pdo, string $key): void

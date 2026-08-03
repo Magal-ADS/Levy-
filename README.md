@@ -123,6 +123,15 @@ Observacoes:
 - O CSV precisa ter cabecalho com os nomes exatos das colunas.
 - O `--truncate` limpa as tabelas antes da carga.
 
+## Importar a fatura legada de abril de 2026
+
+O importador fixo exige o e-mail do usuário proprietário dos dados. Os IDs de
+cartão e pessoas configurados no script também são validados antes da importação:
+
+```bash
+docker compose exec app php importar_fatura.php --user-email=usuario@exemplo.com
+```
+
 ## Ver logs
 
 ```bash

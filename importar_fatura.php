@@ -1,33 +1,39 @@
 <?php
+
+declare(strict_types=1);
+
 // ==========================================================
 // IMPORTADOR DA FATURA COMPLETA - ABRIL 2026
 // ==========================================================
 
-$envFile = __DIR__ . '/.env';
-if (file_exists($envFile)) {
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#') continue;
-        if (strpos($line, '=') === false) continue;
-        list($key, $value) = explode('=', $line, 2);
-        putenv(trim($key) . "=" . trim($value));
-    }
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
 }
 
-$host = getenv('DB_HOST') ?: '127.0.0.1';
-$user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: '';
-$db   = getenv('DB_NAME') ?: 'controle_financeiro';
+require_once __DIR__ . '/config/database.php';
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
-    echo "🐬 Conectado ao banco MySQL: $db\n";
-} catch (PDOException $e) {
-    die("ERRO ao conectar: " . $e->getMessage() . "\n");
+$options = getopt('u:', ['user-email:']) ?: [];
+$environmentUserEmail = getenv('IMPORT_USER_EMAIL');
+$userEmailInput = $options['user-email'] ?? $options['u'] ?? ($environmentUserEmail !== false ? $environmentUserEmail : '');
+$userEmail = strtolower(trim((string) $userEmailInput));
+if (!filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+    fwrite(STDERR, "Uso: php importar_fatura.php --user-email=usuario@exemplo.com\n");
+    exit(1);
 }
+
+$userStmt = $pdo->prepare(
+    "SELECT id FROM usuarios
+     WHERE LOWER(email) = ? AND ativo = 1 AND senha_hash IS NOT NULL
+     LIMIT 1"
+);
+$userStmt->execute([$userEmail]);
+$usuarioId = $userStmt->fetchColumn();
+if ($usuarioId === false) {
+    fwrite(STDERR, "Usuário ativo não encontrado para o e-mail informado.\n");
+    exit(1);
+}
+$usuarioId = (int) $usuarioId;
 
 // ==========================================================
 // CONFIGURAÇÕES DE IMPORTAÇÃO
@@ -41,6 +47,26 @@ $idLucio = 2;
 $idVera = 3;
 $idPais = 4;
 $idMagal = null; // NULL é a sua parte
+
+$cartaoStmt = $pdo->prepare("SELECT 1 FROM cartoes WHERE id = ? AND usuario_id = ?");
+$cartaoStmt->execute([$cartaoId, $usuarioId]);
+if (!$cartaoStmt->fetchColumn()) {
+    fwrite(STDERR, "O cartão {$cartaoId} não pertence ao usuário informado.\n");
+    exit(1);
+}
+
+$personIds = array_values(array_filter([$idAnna, $idLucio, $idVera, $idPais], static fn ($id): bool => $id !== null));
+$personPlaceholders = implode(', ', array_fill(0, count($personIds), '?'));
+$personStmt = $pdo->prepare(
+    "SELECT id FROM pessoas WHERE usuario_id = ? AND id IN ({$personPlaceholders})"
+);
+$personStmt->execute(array_merge([$usuarioId], $personIds));
+$ownedPersonIds = array_map('intval', $personStmt->fetchAll(PDO::FETCH_COLUMN));
+$missingPersonIds = array_values(array_diff($personIds, $ownedPersonIds));
+if ($missingPersonIds !== []) {
+    fwrite(STDERR, 'Pessoas ausentes ou pertencentes a outro usuário: ' . implode(', ', $missingPersonIds) . "\n");
+    exit(1);
+}
 
 // ==========================================================
 // LISTA COMPLETA DE GASTOS (TODAS AS IMAGENS)
@@ -112,15 +138,24 @@ echo "\nIniciando importação de 54 registros para $mesReferencia...\n";
 $pdo->beginTransaction();
 
 try {
-    $stmtT = $pdo->prepare("INSERT INTO transacoes (descricao, valor_total, tipo, data_movimentacao, mes_referencia, cartao_id) VALUES (?, ?, 'despesa', ?, ?, ?)");
-    $stmtD = $pdo->prepare("INSERT INTO divisoes_transacao (transacao_id, pessoa_id, valor_divisao, status_pago) VALUES (?, ?, ?, 0)");
+    $stmtT = $pdo->prepare(
+        "INSERT INTO transacoes
+         (usuario_id, descricao, valor_total, tipo, data_movimentacao, mes_referencia, cartao_id)
+         VALUES (?, ?, ?, 'despesa', ?, ?, ?)
+         RETURNING id"
+    );
+    $stmtD = $pdo->prepare(
+        "INSERT INTO divisoes_transacao
+         (usuario_id, transacao_id, pessoa_id, valor_divisao, status_pago)
+         VALUES (?, ?, ?, ?, 0)"
+    );
 
     foreach ($gastos as $g) {
-        $stmtT->execute([$g['descricao'], $g['valor'], $dataMovimentacao, $mesReferencia, $cartaoId]);
-        $tid = $pdo->lastInsertId();
+        $stmtT->execute([$usuarioId, $g['descricao'], $g['valor'], $dataMovimentacao, $mesReferencia, $cartaoId]);
+        $tid = (int) $stmtT->fetchColumn();
 
         foreach ($g['divisoes'] as $d) {
-            $stmtD->execute([$tid, $d['pessoa'], $d['valor']]);
+            $stmtD->execute([$usuarioId, $tid, $d['pessoa'], $d['valor']]);
         }
         echo "✅ OK: {$g['descricao']}\n";
     }
@@ -130,5 +165,6 @@ try {
 
 } catch (Exception $e) {
     $pdo->rollBack();
-    echo "❌ ERRO: " . $e->getMessage() . "\n";
+    fwrite(STDERR, "❌ ERRO: " . $e->getMessage() . "\n");
+    exit(1);
 }
