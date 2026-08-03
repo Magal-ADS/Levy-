@@ -7,10 +7,11 @@
     <title><?= isset($pageTitle) ? htmlspecialchars($pageTitle) . ' - Levy' : 'Levy - Controle Financeiro' ?></title>
     
     <link rel="manifest" href="<?= htmlspecialchars(asset_url('manifest.php')) ?>">
+    <link rel="icon" href="<?= htmlspecialchars(asset_url('favicon.svg')) ?>" type="image/svg+xml">
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5501/5501375.png">
+    <link rel="apple-touch-icon" href="<?= htmlspecialchars(asset_url('favicon.svg')) ?>">
 
     <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/app.css')) ?>">
     <?php if (!empty($loadChartJs)): ?>

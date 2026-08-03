@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuração inicial - Levy</title>
+    <link rel="icon" href="<?= htmlspecialchars(asset_url('favicon.svg')) ?>" type="image/svg+xml">
     <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/app.css')) ?>">
 </head>
 <body class="min-h-screen bg-slate-950 flex items-center justify-center p-4">

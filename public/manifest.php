@@ -15,10 +15,10 @@ echo json_encode([
     'description' => 'Meu Controle Financeiro Pessoal',
     'icons' => [
         [
-            'src' => 'https://cdn-icons-png.flaticon.com/512/5501/5501375.png',
-            'sizes' => '512x512',
-            'type' => 'image/png',
-            'purpose' => 'any maskable',
+            'src' => asset_url('favicon.svg'),
+            'sizes' => 'any',
+            'type' => 'image/svg+xml',
+            'purpose' => 'any',
         ],
     ],
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
