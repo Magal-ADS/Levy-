@@ -39,14 +39,7 @@ function getCorAmigo($nome) {
     <?php endif; ?>
 
     <div class="space-y-4">
-        <?php if (empty($pessoasAgrupadas)): ?>
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-10 text-center">
-                <span class="text-4xl block mb-2">🎉</span>
-                <p class="text-slate-500 font-bold">Ninguém te deve nada neste mês.</p>
-            </div>
-        <?php else: ?>
-
-            <!-- Card: Minhas Despesas Detalhadas (Auditoria) -->
+            <!-- Cada forma de pagamento possui sua própria tabela. -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div onclick="toggleSanfona('meus-gastos')" class="w-full flex flex-col md:flex-row justify-between items-start md:items-center p-5 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer gap-4 md:gap-0">
                     <div class="flex items-center gap-4">
@@ -65,7 +58,13 @@ function getCorAmigo($nome) {
                     </div>
                 </div>
 
-                <div id="meus-gastos" class="hidden border-t border-slate-200 bg-white">
+                <div id="meus-gastos" class="hidden border-t border-slate-200 bg-white p-4 space-y-4">
+                    <?php foreach ($minhasDespesas['pagamentos'] as $pagamento): ?>
+                    <section class="overflow-hidden rounded-lg border border-slate-200">
+                    <div class="flex items-center justify-between bg-slate-50 px-4 py-3">
+                        <h4 class="text-sm font-bold text-slate-700"><?= htmlspecialchars($pagamento['nome']) ?></h4>
+                        <span class="text-sm font-black text-slate-600">R$ <?= number_format($pagamento['total'], 2, ',', '.') ?></span>
+                    </div>
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 border-b border-slate-100">
                             <tr>
@@ -75,7 +74,7 @@ function getCorAmigo($nome) {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <?php foreach ($minhasDespesas['itens'] as $item): ?>
+                            <?php foreach ($pagamento['itens'] as $item): ?>
                                 <tr class="hover:bg-slate-50/50 transition-colors">
                                     <td class="px-6 py-4">
                                         <div class="font-bold text-slate-600"><?= date('d/m/Y', strtotime($item['data_movimentacao'])) ?></div>
@@ -87,8 +86,20 @@ function getCorAmigo($nome) {
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    </section>
+                    <?php endforeach; ?>
+                    <?php if (empty($minhasDespesas['pagamentos'])): ?>
+                        <p class="py-4 text-center text-sm text-slate-400">Nenhum gasto do usuário neste mês.</p>
+                    <?php endif; ?>
                 </div>
             </div>
+
+            <?php if (empty($pessoasAgrupadas)): ?>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-10 text-center">
+                    <span class="text-4xl block mb-2">🎉</span>
+                    <p class="text-slate-500 font-bold">Ninguém te deve nada neste mês.</p>
+                </div>
+            <?php endif; ?>
 
             <?php foreach ($pessoasAgrupadas as $pId => $pessoa): ?>
                 <?php $cores = getCorAmigo($pessoa['nome']); ?>
@@ -120,7 +131,13 @@ function getCorAmigo($nome) {
                         </div>
                     </div>
 
-                    <div id="amigo-<?= $pId ?>" class="hidden border-t border-slate-200 bg-white">
+                    <div id="amigo-<?= $pId ?>" class="hidden border-t border-slate-200 bg-white p-4 space-y-4">
+                        <?php foreach ($pessoa['pagamentos'] as $pagamento): ?>
+                        <section class="overflow-hidden rounded-lg border border-slate-200">
+                        <div class="flex items-center justify-between bg-slate-50 px-4 py-3">
+                            <h4 class="text-sm font-bold text-slate-700"><?= htmlspecialchars($pagamento['nome']) ?></h4>
+                            <span class="text-sm font-black text-rose-500">R$ <?= number_format($pagamento['total'], 2, ',', '.') ?></span>
+                        </div>
                         <table class="w-full text-sm text-left">
                             <thead class="bg-slate-50 border-b border-slate-100">
                                 <tr>
@@ -131,7 +148,7 @@ function getCorAmigo($nome) {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <?php foreach ($pessoa['itens'] as $item): ?>
+                                <?php foreach ($pagamento['itens'] as $item): ?>
                                     <tr class="hover:bg-slate-50/50 transition-colors">
                                         <td class="px-6 py-4">
                                             <div class="font-bold text-slate-600"><?= date('d/m/Y', strtotime($item['data_movimentacao'])) ?></div>
@@ -151,10 +168,11 @@ function getCorAmigo($nome) {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </section>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
-        <?php endif; ?>
     </div>
 </div>
 

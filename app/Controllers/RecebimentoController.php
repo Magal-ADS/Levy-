@@ -17,14 +17,17 @@ class RecebimentoController {
         }
 
         $sql = "SELECT dt.id as divisao_id, p.id as pessoa_id, p.nome as amigo_nome,
-                       t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia
+                       t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia,
+                       t.cartao_id, c.nome as cartao_nome
                 FROM divisoes_transacao dt
                 JOIN transacoes t ON dt.transacao_id = t.id
                 JOIN pessoas p ON dt.pessoa_id = p.id
+                LEFT JOIN cartoes c ON c.id = t.cartao_id AND c.usuario_id = t.usuario_id
                 WHERE dt.status_pago = 0
                   AND t.usuario_id = :usuario_id
                   AND dt.pessoa_id IS NOT NULL
                   AND t.mes_referencia = :mes
+                  AND t.tipo = 'despesa'
                 ORDER BY p.nome ASC, t.data_movimentacao DESC";
 
         $stmt = $this->pdo->prepare($sql);
@@ -50,13 +53,21 @@ class RecebimentoController {
             $pessoasAgrupadas[$pId]['itens'][] = $row;
         }
 
+        foreach ($pessoasAgrupadas as &$pessoa) {
+            $pessoa['pagamentos'] = $this->agruparPorPagamento($pessoa['itens']);
+        }
+        unset($pessoa);
+
         // Buscar minhas despesas (parte do usuário principal) para auditoria
-        $sqlMinhas = "SELECT dt.id as divisao_id, t.id as transacao_id, t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia
+        $sqlMinhas = "SELECT dt.id as divisao_id, t.id as transacao_id, t.descricao, dt.valor_divisao, t.data_movimentacao, t.mes_referencia,
+                              t.cartao_id, c.nome as cartao_nome
                       FROM divisoes_transacao dt
                       INNER JOIN transacoes t ON t.id = dt.transacao_id
+                      LEFT JOIN cartoes c ON c.id = t.cartao_id AND c.usuario_id = t.usuario_id
                       WHERE dt.pessoa_id IS NULL
                         AND t.usuario_id = :usuario_id
                         AND t.mes_referencia = :mes
+                        AND t.tipo = 'despesa'
                       ORDER BY t.data_movimentacao DESC";
         $stmtMinhas = $this->pdo->prepare($sqlMinhas);
         $stmtMinhas->execute(['usuario_id' => $usuarioId, 'mes' => $mesReferencia]);
@@ -69,10 +80,30 @@ class RecebimentoController {
 
         $minhasDespesas = [
             'total' => $totalMinhas,
-            'itens' => $itensMinhas
+            'itens' => $itensMinhas,
+            'pagamentos' => $this->agruparPorPagamento($itensMinhas),
         ];
 
         require_once '../app/Views/recebimentos.php';
+    }
+
+    private function agruparPorPagamento(array $itens): array {
+        $pagamentos = [];
+
+        foreach ($itens as $item) {
+            $cartaoId = $item['cartao_id'] ?? null;
+            $chave = $cartaoId === null ? 'pix-dinheiro' : 'cartao-' . $cartaoId;
+            $nome = $item['cartao_nome'] ?: 'Dinheiro / PIX';
+
+            if (!isset($pagamentos[$chave])) {
+                $pagamentos[$chave] = ['nome' => $nome, 'total' => 0.0, 'itens' => []];
+            }
+
+            $pagamentos[$chave]['total'] += (float) $item['valor_divisao'];
+            $pagamentos[$chave]['itens'][] = $item;
+        }
+
+        return $pagamentos;
     }
 
     public function gerarPdfPessoa($pessoaId = null, $mes = null) {
